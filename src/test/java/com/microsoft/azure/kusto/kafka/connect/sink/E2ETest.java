@@ -13,32 +13,37 @@ import com.microsoft.azure.kusto.ingest.IngestionProperties;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 import org.testng.Assert;
 
+import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-
 public class E2ETest {
     private static final String testPrefix = "tmpKafkaE2ETest";
     private String appId = System.getProperty("appId");
     private String appKey = System.getProperty("appKey");
-    private String authority = System.getProperty("authority", "microsoft.com");
+    private String authority = System.getProperty("authority");
     private String cluster = System.getProperty("cluster");
     private String database = System.getProperty("database");
     private String tableBaseName = System.getProperty("table", testPrefix + UUID.randomUUID().toString().replace('-', '_'));
     private String basePath = Paths.get("src/test/resources/", "testE2E").toString();
+    private KustoSinkConfig config;
 
+    @Before
+    public final void before() {
+        config = new KustoSinkConfig(PropsUtil.getProperties());
+    }
     @Test
-    @Ignore
     public void testE2ECsv() throws URISyntaxException, DataClientException, DataServiceException {
         String table = tableBaseName + "csv";
         ConnectionStringBuilder engineCsb = ConnectionStringBuilder.createWithAadApplicationCredentials(String.format("https://%s.kusto.windows.net", cluster), appId, appKey, authority);
@@ -69,7 +74,7 @@ public class E2ETest {
             props.ingestionProperties.setDataFormat(IngestionProperties.DATA_FORMAT.csv);
             props.ingestionProperties.setIngestionMapping("mappy", IngestionMapping.IngestionMappingKind.csv);
 
-            TopicPartitionWriter writer = new TopicPartitionWriter(tp, ingestClient, props, Paths.get(basePath, "csv").toString(), fileThreshold, flushInterval);
+            TopicPartitionWriter writer = new TopicPartitionWriter(tp, ingestClient, props, Paths.get(basePath, "csv").toString(), fileThreshold, flushInterval, config);
             writer.open();
 
             List<SinkRecord> records = new ArrayList<SinkRecord>();
@@ -92,7 +97,6 @@ public class E2ETest {
     }
 
     @Test
-    @Ignore
     public void testE2EAvro() throws URISyntaxException, DataClientException, DataServiceException {
         String table = tableBaseName + "avro";
         ConnectionStringBuilder engineCsb = ConnectionStringBuilder.createWithAadApplicationCredentials(String.format("https://%s.kusto.windows.net", cluster), appId, appKey, authority);
@@ -117,7 +121,7 @@ public class E2ETest {
             props2.ingestionProperties.setDataFormat(IngestionProperties.DATA_FORMAT.avro);
             props2.ingestionProperties.setIngestionMapping("avri", IngestionMapping.IngestionMappingKind.avro);
             TopicPartition tp2 = new TopicPartition("testPartition2", 11);
-            TopicPartitionWriter writer2 = new TopicPartitionWriter(tp2, ingestClient, props2, Paths.get(basePath, "avro").toString(), 10, 300000);
+            TopicPartitionWriter writer2 = new TopicPartitionWriter(tp2, ingestClient, props2, Paths.get(basePath, "avro").toString(), 10, 300000, config);
             writer2.open();
             List<SinkRecord> records2 = new ArrayList<SinkRecord>();
 

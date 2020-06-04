@@ -20,7 +20,7 @@ import java.util.zip.GZIPOutputStream;
 
 public class FileWriterTest {
     private File currentDirectory;
-
+    private KustoSinkConfig config;
     @Before
     public final void before() {
         currentDirectory = new File(Paths.get(
@@ -28,6 +28,7 @@ public class FileWriterTest {
                 FileWriter.class.getSimpleName(),
                 String.valueOf(Instant.now().toEpochMilli())
         ).toString());
+      config = new KustoSinkConfig(PropsUtil.getProperties());
     }
 
     @After
@@ -56,7 +57,7 @@ public class FileWriterTest {
 
         Supplier<String> generateFileName = () -> FILE_PATH;
 
-        FileWriter fileWriter = new FileWriter(path, MAX_FILE_SIZE, trackFiles, generateFileName, 30000, false);
+        FileWriter fileWriter = new FileWriter(path, MAX_FILE_SIZE, trackFiles, generateFileName, 30000, false,config);
 
         fileWriter.openFile();
 
@@ -86,7 +87,7 @@ public class FileWriterTest {
 
         Supplier<String> generateFileName = () -> Paths.get(path, String.valueOf(java.util.UUID.randomUUID())).toString() + "csv.gz";
 
-        FileWriter fileWriter = new FileWriter(path, MAX_FILE_SIZE, trackFiles, generateFileName, 30000, false);
+        FileWriter fileWriter = new FileWriter(path, MAX_FILE_SIZE, trackFiles, generateFileName, 30000, false,config);
 
         for (int i = 0; i < 9; i++) {
             String msg = String.format("Line number %d : This is a message from the other size", i);
@@ -126,7 +127,7 @@ public class FileWriterTest {
         Supplier<String> generateFileName = () -> Paths.get(path, java.util.UUID.randomUUID().toString()).toString() + "csv.gz";
 
         // Expect no files to be ingested as size is small and flushInterval is big
-        FileWriter fileWriter = new FileWriter(path, MAX_FILE_SIZE, trackFiles, generateFileName, 30000, false);
+        FileWriter fileWriter = new FileWriter(path, MAX_FILE_SIZE, trackFiles, generateFileName, 30000, false,config);
 
         String msg = "Message";
         fileWriter.write(msg.getBytes(StandardCharsets.UTF_8));
@@ -143,7 +144,7 @@ public class FileWriterTest {
 
         Supplier<String> generateFileName2 = () -> Paths.get(path2, java.util.UUID.randomUUID().toString()).toString();
         // Expect one file to be ingested as flushInterval had changed
-        FileWriter fileWriter2 = new FileWriter(path2, MAX_FILE_SIZE, trackFiles, generateFileName2, 1000, false);
+        FileWriter fileWriter2 = new FileWriter(path2, MAX_FILE_SIZE, trackFiles, generateFileName2, 1000, false,config);
 
         String msg2 = "Second Message";
 
@@ -182,7 +183,7 @@ public class FileWriterTest {
         Supplier<String> generateFileName = () -> Paths.get(path, java.util.UUID.randomUUID().toString()).toString() + ".csv.gz";
 
         // Expect no files to be ingested as size is small and flushInterval is big
-        FileWriter fileWriter = new FileWriter(path, MAX_FILE_SIZE, trackFiles, generateFileName, 0, false);
+        FileWriter fileWriter = new FileWriter(path, MAX_FILE_SIZE, trackFiles, generateFileName, 0, false,config);
 
         gzipOutputStream.write(msg.getBytes());
         gzipOutputStream.finish();

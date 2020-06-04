@@ -28,6 +28,7 @@ public class FileWriter implements Closeable {
     private String basePath;
     private CountingOutputStream countingStream;
     private long fileThreshold;
+    private KustoSinkConfig kustoConfig;
 
     // Don't remove! File descriptor is kept so that the file is not deleted when stream is closed
     private FileDescriptor currentFileDescriptor;
@@ -44,13 +45,16 @@ public class FileWriter implements Closeable {
                       Consumer<SourceFile> onRollCallback,
                       Supplier<String> getFilePath,
                       long flushInterval,
-                      boolean shouldCompressData) {
+                      boolean shouldCompressData,
+                      KustoSinkConfig config) {
         this.getFilePath = getFilePath;
         this.basePath = basePath;
         this.fileThreshold = fileThreshold;
         this.onRollCallback = onRollCallback;
         this.flushInterval = flushInterval;
         this.shouldCompressData = shouldCompressData;
+        kustoConfig = config;
+
     }
 
     boolean isDirty() {
@@ -186,9 +190,8 @@ public class FileWriter implements Closeable {
         } catch (Exception e) {
             String fileName = currentFile == null ? "no file created yet" : currentFile.file.getName();
             long currentSize = currentFile == null ? 0 : currentFile.rawBytes;
-            log.error(String.format("Error in flushByTime. Current file: %s, size: %d. ", fileName, currentSize), e);
+            kustoConfig.handleErrors(String.format("Error in flushByTime. Current file: %s, size: %d. ", fileName, currentSize),e);
         }
-
         resetFlushTimer(false);
     }
 

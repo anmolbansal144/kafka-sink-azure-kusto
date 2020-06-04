@@ -36,6 +36,7 @@ public class KustoSinkTask extends SinkTask {
     private long maxFileSize;
     private long flushInterval;
     private String tempDir;
+    private KustoSinkConfig config;
 
     public KustoSinkTask() {
         assignment = new HashSet<>();
@@ -155,8 +156,7 @@ public class KustoSinkTask extends SinkTask {
             if (ingestionProps == null) {
                 throw new ConnectException(String.format("Kusto Sink has no ingestion props mapped for the topic: %s. please check your configuration.", tp.topic()));
             } else {
-                TopicPartitionWriter writer = new TopicPartitionWriter(tp, kustoIngestClient, ingestionProps, tempDir, maxFileSize, flushInterval);
-
+                TopicPartitionWriter writer = new TopicPartitionWriter(tp, kustoIngestClient, ingestionProps, tempDir, maxFileSize, flushInterval,config);
                 writer.open();
                 writers.put(tp, writer);
             }
@@ -171,16 +171,15 @@ public class KustoSinkTask extends SinkTask {
                 writers.remove(tp);
                 assignment.remove(tp);
             } catch (ConnectException e) {
-                log.error("Error closing writer for {}. Error: {}", tp, e.getMessage());
+                config.handleErrors(String.format("Error closing writer for %s",tp),e);
             }
         }
     }
 
-
     @Override
     public void start(Map<String, String> props) throws ConnectException {
         try {
-            KustoSinkConfig config = new KustoSinkConfig(props);
+            config = new KustoSinkConfig(props);
             String url = config.getKustoUrl();
 
             topicsToIngestionProps = getTopicsToIngestionProps(config);
@@ -208,7 +207,7 @@ public class KustoSinkTask extends SinkTask {
         try {
             kustoIngestClient.close();
         } catch (IOException e) {
-            log.error("Error closing kusto client", e);
+            config.handleErrors("Error closing kusto client",e);
         }
     }
 
@@ -222,8 +221,7 @@ public class KustoSinkTask extends SinkTask {
 
             if (writer == null) {
                 NotFoundException e = new NotFoundException(String.format("Received a record without a mapped writer for topic:partition(%s:%d), dropping record.", tp.topic(), tp.partition()));
-                log.error("Error putting records: ", e);
-                throw e;
+                config.handleErrors(e.getMessage(), e);
             }
 
             writer.writeRecord(record);

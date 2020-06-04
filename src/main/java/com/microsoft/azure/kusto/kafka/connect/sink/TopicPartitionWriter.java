@@ -4,32 +4,31 @@ import com.microsoft.azure.kusto.ingest.IngestClient;
 import com.microsoft.azure.kusto.ingest.IngestionProperties;
 import com.microsoft.azure.kusto.ingest.source.CompressionType;
 import com.microsoft.azure.kusto.ingest.source.FileSourceInfo;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 
 public class TopicPartitionWriter {
+
     private static final Logger log = LoggerFactory.getLogger(KustoSinkTask.class);
-    private final CompressionType eventDataCompression;
-    private final TopicPartition tp;
-    private final IngestClient client;
-    private final IngestionProperties ingestionProps;
-    private final String basePath;
-    private final long flushInterval;
-    private final long fileThreshold;
+    private CompressionType eventDataCompression;
+    private TopicPartition tp;
+    private IngestClient client;
+    private IngestionProperties ingestionProps;
+    private String basePath;
+    private long flushInterval;
+    private long fileThreshold;
+    private KustoSinkConfig kustoSinkConfig;
 
     FileWriter fileWriter;
     long currentOffset;
     Long lastCommittedOffset;
-
-    TopicPartitionWriter(TopicPartition tp, IngestClient client, TopicIngestionProperties ingestionProps, String basePath, long fileThreshold, long flushInterval) {
+    public TopicPartitionWriter(TopicPartition tp, IngestClient client, TopicIngestionProperties ingestionProps, String basePath, long fileThreshold, long flushInterval, KustoSinkConfig config) {
         this.tp = tp;
         this.client = client;
         this.ingestionProps = ingestionProps.ingestionProperties;
@@ -38,6 +37,7 @@ public class TopicPartitionWriter {
         this.flushInterval = flushInterval;
         this.currentOffset = 0;
         this.eventDataCompression = ingestionProps.eventDataCompression;
+        kustoSinkConfig = config;
     }
 
     public void handleRollFile(SourceFile fileDescriptor) {
@@ -49,7 +49,7 @@ public class TopicPartitionWriter {
             log.info(String.format("Kusto ingestion: file (%s) of size (%s) at current offset (%s)", fileDescriptor.path, fileDescriptor.rawBytes, currentOffset));
             this.lastCommittedOffset = currentOffset;
         } catch (Exception e) {
-            log.error("Ingestion Failed for file : "+ fileDescriptor.file.getName() + ", message: " + e.getMessage() + "\nException  : " + ExceptionUtils.getStackTrace(e));
+            kustoSinkConfig.handleErrors("Ingestion Failed for file :" + fileDescriptor.file.getName(),e);
         }
     }
 
@@ -84,7 +84,7 @@ public class TopicPartitionWriter {
 
             value = valueWithSeparator;
         } else {
-            log.error(String.format("Unexpected value type, skipping record %s", record));
+            kustoSinkConfig.handleErrors(String.format("Unexpected value type, skipping record %s", record),null);
         }
 
         if (value == null) {
@@ -94,7 +94,7 @@ public class TopicPartitionWriter {
                 this.currentOffset = record.kafkaOffset();
                 fileWriter.write(value);
             } catch (IOException e) {
-                log.error("File write failed", e);
+                kustoSinkConfig.handleErrors("File write failed", e);
             }
         }
     }
@@ -109,7 +109,8 @@ public class TopicPartitionWriter {
                 this::handleRollFile,
                 this::getFilePath,
                 !shouldCompressData ? 0 : flushInterval,
-                shouldCompressData);
+                shouldCompressData,
+            kustoSinkConfig);
     }
 
     public void close() {
