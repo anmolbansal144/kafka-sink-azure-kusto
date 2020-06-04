@@ -73,6 +73,17 @@ public class KustoSinkConfig extends AbstractConfig {
         + "``log``\n" + ErrorBehaviour.LOG.getDesc();
     private static final String BEHAVIOR_ON_ERROR_DISPLAY = "Behavior On Errors";
 
+    public static final String MAX_RETRIES_CONFIG = "max.retries";
+    private static final String MAX_RETRIES_DOC =
+        "The maximum number of retries that are allowed for failed indexing requests. If the retry "
+            + "attempts are exhausted the task will fail.";
+    public static final String RETRY_BACKOFF_MS_CONFIG = "retry.backoff.ms";
+    private static final String RETRY_BACKOFF_MS_DOC =
+        "How long to wait in milliseconds before attempting the first retry of a failed indexing "
+            + "request. Upon a failure, this connector may wait up to twice as long as the previous "
+            + "wait, up to the maximum number of retries. "
+            + "This avoids retrying in a tight loop under failure scenarios.";
+
     public KustoSinkConfig(ConfigDef config, Map<String, String> parsedConfig) {
         super(config, parsedConfig);
     }
@@ -93,7 +104,28 @@ public class KustoSinkConfig extends AbstractConfig {
                 .define(KUSTO_SINK_TEMPDIR, Type.STRING, System.getProperty("java.io.tempdir"), Importance.LOW, "Temp dir that will be used by kusto sink to buffer records. defaults to system temp dir")
                 .define(KUSTO_SINK_FLUSH_SIZE, Type.LONG, FileUtils.ONE_MB, Importance.HIGH, "Kusto sink max buffer size (per topic+partition combo)")
                 .define(KUSTO_SINK_FLUSH_INTERVAL_MS, Type.LONG, TimeUnit.MINUTES.toMillis(5), Importance.HIGH, "Kusto sink max staleness in milliseconds (per topic+partition combo)")
-                .define(BEHAVIOR_ON_ERROR_CONFIG, ConfigDef.Type.STRING, BEHAVIOR_ON_ERROR_DEFAULT, ConfigDef.Importance.MEDIUM, BEHAVIOR_ON_ERROR_DOC,"Error behaviour",1,ConfigDef.Width.LONG, BEHAVIOR_ON_ERROR_DISPLAY);
+                .define(BEHAVIOR_ON_ERROR_CONFIG, ConfigDef.Type.STRING, BEHAVIOR_ON_ERROR_DEFAULT, ConfigDef.Importance.MEDIUM, BEHAVIOR_ON_ERROR_DOC,"Error behaviour",1,ConfigDef.Width.LONG, BEHAVIOR_ON_ERROR_DISPLAY)
+        .define(
+            MAX_RETRIES_CONFIG,
+            Type.INT,
+            5,
+            Importance.LOW,
+            MAX_RETRIES_DOC,
+            "Retry",
+            2,
+            ConfigDef.Width.SHORT,
+            "Max Retries"
+        ).define(
+            RETRY_BACKOFF_MS_CONFIG,
+            Type.LONG,
+            100L,
+            Importance.LOW,
+            RETRY_BACKOFF_MS_DOC,
+            "Retry",
+            2,
+            ConfigDef.Width.SHORT,
+            "Retry Backoff (ms)"
+        );
     }
 
     public String getKustoUrl() {
@@ -134,6 +166,14 @@ public class KustoSinkConfig extends AbstractConfig {
 
     public long getKustoFlushIntervalMS() {
         return this.getLong(KUSTO_SINK_FLUSH_INTERVAL_MS);
+    }
+
+    public int getMaxRetry() {
+        return this.getInt(MAX_RETRIES_CONFIG);
+    }
+
+    public int getRetryBaxkOff() {
+        return this.getInt(RETRY_BACKOFF_MS_CONFIG);
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.microsoft.azure.kusto.kafka.connect.sink;
 
+import org.apache.kafka.common.utils.SystemTime;
+import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +31,7 @@ public class FileWriter implements Closeable {
     private CountingOutputStream countingStream;
     private long fileThreshold;
     private KustoSinkConfig kustoConfig;
+    private final Time time = new SystemTime();
 
     // Don't remove! File descriptor is kept so that the file is not deleted when stream is closed
     private FileDescriptor currentFileDescriptor;
@@ -183,14 +186,30 @@ public class FileWriter implements Closeable {
     }
 
     private void flushByTimeImpl() {
-        try {
-            if (currentFile != null && currentFile.rawBytes > 0) {
-                rotate();
+        final long maxAttempts = kustoConfig.getMaxRetry() + 1;
+        int attempts = 1;
+        boolean indexed = false;
+        while (!indexed) {
+            try {
+                if (currentFile != null && currentFile.rawBytes > 0) {
+                    rotate();
+                }
+                indexed = true;
+            } catch (Exception e) {
+                String fileName = currentFile == null ? "no file created yet" : currentFile.file.getName();
+                long currentSize = currentFile == null ? 0 : currentFile.rawBytes;
+                if (attempts < maxAttempts) {
+                    long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
+                        kustoConfig.getRetryBaxkOff());
+                    log.warn("Failed to flushByTime. Current file: {}, size: {} with attempt {}/{}, "
+                            + "will attempt retry after {} ms. Failure reason: {}",
+                        fileName, currentSize, attempts, maxAttempts, sleepTimeMs, e.getMessage());
+                    time.sleep(sleepTimeMs);
+                } else {
+                    kustoConfig.handleErrors(String.format("Error in flushByTime. Current file: %s, size: %d. ", fileName, currentSize), e);
+                }
+                attempts++;
             }
-        } catch (Exception e) {
-            String fileName = currentFile == null ? "no file created yet" : currentFile.file.getName();
-            long currentSize = currentFile == null ? 0 : currentFile.rawBytes;
-            kustoConfig.handleErrors(String.format("Error in flushByTime. Current file: %s, size: %d. ", fileName, currentSize),e);
         }
         resetFlushTimer(false);
     }

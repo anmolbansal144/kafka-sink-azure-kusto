@@ -10,6 +10,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.utils.SystemTime;
+import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.NotFoundException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -37,6 +39,7 @@ public class KustoSinkTask extends SinkTask {
     private long flushInterval;
     private String tempDir;
     private KustoSinkConfig config;
+    private final Time time = new SystemTime();
 
     public KustoSinkTask() {
         assignment = new HashSet<>();
@@ -166,12 +169,28 @@ public class KustoSinkTask extends SinkTask {
     @Override
     public void close(Collection<TopicPartition> partitions) {
         for (TopicPartition tp : partitions) {
-            try {
-                writers.get(tp).close();
-                writers.remove(tp);
-                assignment.remove(tp);
-            } catch (ConnectException e) {
-                config.handleErrors(String.format("Error closing writer for %s",tp),e);
+            final long maxAttempts = config.getMaxRetry() + 1;
+            int attempts = 1;
+            boolean indexed = false;
+            while (!indexed) {
+                try {
+                    writers.get(tp).close();
+                    writers.remove(tp);
+                    assignment.remove(tp);
+                    indexed = true;
+                } catch (ConnectException e) {
+                    if (attempts < maxAttempts) {
+                        long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
+                            config.getRetryBaxkOff());
+                        log.warn("Error closing writer for {} with attempt {}/{}, "
+                                + "will attempt retry after {} ms. Failure reason: {}",
+                            tp,attempts, maxAttempts, sleepTimeMs, e.getMessage());
+                        time.sleep(sleepTimeMs);
+                    } else {
+                        config.handleErrors(String.format("Error closing writer for %s", tp), e);
+                    }
+                    attempts++;
+                }
             }
         }
     }
@@ -204,10 +223,27 @@ public class KustoSinkTask extends SinkTask {
         for (TopicPartitionWriter writer : writers.values()) {
             writer.close();
         }
-        try {
-            kustoIngestClient.close();
-        } catch (IOException e) {
-            config.handleErrors("Error closing kusto client",e);
+        final long maxAttempts = config.getMaxRetry() + 1;
+        int attempts = 1;
+        boolean indexed = false;
+        while (!indexed) {
+            try {
+
+                kustoIngestClient.close();
+                indexed = true;
+            } catch (IOException e) {
+                if (attempts < maxAttempts) {
+                    long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
+                        config.getRetryBaxkOff());
+                    log.warn("Error closing kusto client with attempt {}/{}, "
+                            + "will attempt retry after {} ms. Failure reason: {}",
+                        attempts, maxAttempts, sleepTimeMs, e.getMessage());
+                    time.sleep(sleepTimeMs);
+                } else {
+                    config.handleErrors("Error closing kusto client", e);
+                }
+                attempts++;
+            }
         }
     }
 

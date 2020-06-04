@@ -5,6 +5,8 @@ import com.microsoft.azure.kusto.ingest.IngestionProperties;
 import com.microsoft.azure.kusto.ingest.source.CompressionType;
 import com.microsoft.azure.kusto.ingest.source.FileSourceInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.utils.SystemTime;
+import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -24,6 +26,7 @@ public class TopicPartitionWriter {
     private long flushInterval;
     private long fileThreshold;
     private KustoSinkConfig kustoSinkConfig;
+    private final Time time = new SystemTime();
 
     FileWriter fileWriter;
     long currentOffset;
@@ -43,13 +46,30 @@ public class TopicPartitionWriter {
     public void handleRollFile(SourceFile fileDescriptor) {
         FileSourceInfo fileSourceInfo = new FileSourceInfo(fileDescriptor.path, fileDescriptor.rawBytes);
 
-        try {
-            client.ingestFromFile(fileSourceInfo, ingestionProps);
+        final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
+        int attempts = 1;
+        boolean indexed = false;
+        while (!indexed) {
+            try {
+                client.ingestFromFile(fileSourceInfo, ingestionProps);
 
-            log.info(String.format("Kusto ingestion: file (%s) of size (%s) at current offset (%s)", fileDescriptor.path, fileDescriptor.rawBytes, currentOffset));
-            this.lastCommittedOffset = currentOffset;
-        } catch (Exception e) {
-            kustoSinkConfig.handleErrors("Ingestion Failed for file :" + fileDescriptor.file.getName(),e);
+                log.info(String.format("Kusto ingestion: file (%s) of size (%s) at current offset (%s)", fileDescriptor.path, fileDescriptor.rawBytes, currentOffset));
+                this.lastCommittedOffset = currentOffset;
+                indexed = true;
+            } catch (Exception e) {
+                if (attempts < maxAttempts) {
+                    long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
+                        kustoSinkConfig.getRetryBaxkOff());
+                    log.warn("Ingestion Failed for file: {}, size: {} with attempt {}/{}, "
+                            + "will attempt retry after {} ms. Failure reason: {}",
+                        fileDescriptor.file.getName(), attempts, maxAttempts, sleepTimeMs, e.getMessage());
+                    time.sleep(sleepTimeMs);
+                } else {
+                    kustoSinkConfig.handleErrors("Ingestion Failed for file :" + fileDescriptor.file.getName(), e);
+                }
+                attempts++;
+
+            }
         }
     }
 
@@ -90,11 +110,27 @@ public class TopicPartitionWriter {
         if (value == null) {
             this.currentOffset = record.kafkaOffset();
         } else {
-            try {
-                this.currentOffset = record.kafkaOffset();
-                fileWriter.write(value);
-            } catch (IOException e) {
-                kustoSinkConfig.handleErrors("File write failed", e);
+            final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
+            int attempts = 1;
+            boolean indexed = false;
+            while (!indexed) {
+                try {
+                    this.currentOffset = record.kafkaOffset();
+                    fileWriter.write(value);
+                    indexed = true;
+                } catch (IOException e) {
+                    if (attempts < maxAttempts) {
+                        long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
+                            kustoSinkConfig.getRetryBaxkOff());
+                        log.warn("File write failed with attempt {}/{}, "
+                                + "will attempt retry after {} ms. Failure reason: {}",
+                            attempts, maxAttempts, sleepTimeMs, e.getMessage());
+                        time.sleep(sleepTimeMs);
+                    } else {
+                        kustoSinkConfig.handleErrors("File write failed", e);
+                    }
+                    attempts++;
+                }
             }
         }
     }
