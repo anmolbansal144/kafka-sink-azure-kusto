@@ -4,7 +4,11 @@ import com.microsoft.azure.kusto.ingest.IngestClient;
 import com.microsoft.azure.kusto.ingest.IngestionProperties;
 import com.microsoft.azure.kusto.ingest.source.CompressionType;
 import com.microsoft.azure.kusto.ingest.source.FileSourceInfo;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.protocol.types.Field;
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.connect.data.Schema;
@@ -14,6 +18,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
 
 public class TopicPartitionWriter {
 
@@ -104,7 +111,7 @@ public class TopicPartitionWriter {
 
             value = valueWithSeparator;
         } else {
-            kustoSinkConfig.handleErrors(String.format("Unexpected value type, skipping record %s", record),null);
+            producer(record);
         }
 
         if (value == null) {
@@ -163,5 +170,42 @@ public class TopicPartitionWriter {
                 || ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.parquet.toString())
                 || ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.orc.toString())
                 || eventDataCompression != null);
+    }
+
+    public void producer(SinkRecord sinkRecord) {
+        byte[] valueBytes = (byte[]) sinkRecord.value();
+        byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
+        byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
+
+        System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
+        System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
+        byte[] value = valueWithSeparator;
+        Properties properties = new Properties();
+        properties.put("bootstrap.servers", kustoSinkConfig.getKustoReporterBootStrapServer());
+        properties.put("key.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
+        properties.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
+        Producer<byte[], byte[]> producer = new KafkaProducer(properties);
+        ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(kustoSinkConfig.getKustoReporterErrorTopic(), value);
+
+        try {
+            producer.send(record, (metadata, exception) -> {
+                if (exception != null) {
+                    kustoSinkConfig.handleErrors(String.format("Failed to log missing record in topic %s",kustoSinkConfig.getKustoReporterErrorTopic()), exception);
+                }
+            });
+        } catch (IllegalStateException e) {
+            /*
+             * This might occur when connector task has been closed,
+             * which means the datagram-socket as well as missing-record-producer
+             * has been closed already.
+             *
+             * The poll() thread might still try to push already enqueued records to missing-record-topic
+             * and the missing-record-producer will end up throwing an IllegalStateException.
+             *
+             * We handle this by logging the missing records to Connect logs.
+             * */
+            log.error("Missing Record Kafka Producer has already been closed.");
+        }
+
     }
 }

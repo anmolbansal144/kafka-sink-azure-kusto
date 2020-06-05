@@ -83,6 +83,12 @@ public class KustoSinkConfig extends AbstractConfig {
             + "request. Upon a failure, this connector may wait up to twice as long as the previous "
             + "wait, up to the maximum number of retries. "
             + "This avoids retrying in a tight loop under failure scenarios.";
+    static final String KUSTO_REPORTER_ERROR_TOPIC = "reporter.error.topic.name";
+    static final String KUSTO_REPORTER_ERROR_TOPIC_DEFAULT = "errorTopic";
+    static final String KUSTO_REPORTER_BOOTSTRAP_SERVERS = "reporter.bootstrap.servers";
+    static final String KUSTO_REPORTER_BOOTSTRAP_SERVERS_DEFAULT = "localhost:9092";
+
+
 
     public KustoSinkConfig(ConfigDef config, Map<String, String> parsedConfig) {
         super(config, parsedConfig);
@@ -105,27 +111,10 @@ public class KustoSinkConfig extends AbstractConfig {
                 .define(KUSTO_SINK_FLUSH_SIZE, Type.LONG, FileUtils.ONE_MB, Importance.HIGH, "Kusto sink max buffer size (per topic+partition combo)")
                 .define(KUSTO_SINK_FLUSH_INTERVAL_MS, Type.LONG, TimeUnit.MINUTES.toMillis(5), Importance.HIGH, "Kusto sink max staleness in milliseconds (per topic+partition combo)")
                 .define(BEHAVIOR_ON_ERROR_CONFIG, ConfigDef.Type.STRING, BEHAVIOR_ON_ERROR_DEFAULT, ConfigDef.Importance.MEDIUM, BEHAVIOR_ON_ERROR_DOC,"Error behaviour",1,ConfigDef.Width.LONG, BEHAVIOR_ON_ERROR_DISPLAY)
-        .define(
-            MAX_RETRIES_CONFIG,
-            Type.INT,
-            5,
-            Importance.LOW,
-            MAX_RETRIES_DOC,
-            "Retry",
-            2,
-            ConfigDef.Width.SHORT,
-            "Max Retries"
-        ).define(
-            RETRY_BACKOFF_MS_CONFIG,
-            Type.LONG,
-            100L,
-            Importance.LOW,
-            RETRY_BACKOFF_MS_DOC,
-            "Retry",
-            2,
-            ConfigDef.Width.SHORT,
-            "Retry Backoff (ms)"
-        );
+                .define(MAX_RETRIES_CONFIG, Type.INT, 5, Importance.LOW, MAX_RETRIES_DOC, "Retry", 2, ConfigDef.Width.SHORT, "Max Retries")
+                .define(RETRY_BACKOFF_MS_CONFIG, Type.LONG, 100L, Importance.LOW, RETRY_BACKOFF_MS_DOC, "Retry", 2, ConfigDef.Width.SHORT, "Retry Backoff (ms)")
+                .define(KUSTO_REPORTER_ERROR_TOPIC, Type.STRING, KUSTO_REPORTER_ERROR_TOPIC_DEFAULT, Importance.MEDIUM, "Topic to which corrupted records has been send.This topic has to be created mannualy")
+                .define(KUSTO_REPORTER_BOOTSTRAP_SERVERS, Type.STRING, KUSTO_REPORTER_BOOTSTRAP_SERVERS_DEFAULT, Importance.MEDIUM, "Address of the bootstrap server in which error topic has been created");
     }
 
     public String getKustoUrl() {
@@ -174,6 +163,14 @@ public class KustoSinkConfig extends AbstractConfig {
 
     public int getRetryBaxkOff() {
         return this.getInt(RETRY_BACKOFF_MS_CONFIG);
+    }
+
+    public String getKustoReporterErrorTopic() {
+        return this.getString(KUSTO_REPORTER_ERROR_TOPIC);
+    }
+
+    public String getKustoReporterBootStrapServer() {
+        return this.getString(KUSTO_REPORTER_BOOTSTRAP_SERVERS);
     }
 
     /**
