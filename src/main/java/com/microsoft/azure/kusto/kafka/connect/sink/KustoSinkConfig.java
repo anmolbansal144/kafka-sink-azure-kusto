@@ -161,8 +161,8 @@ public class KustoSinkConfig extends AbstractConfig {
         return this.getInt(MAX_RETRIES_CONFIG);
     }
 
-    public int getRetryBaxkOff() {
-        return this.getInt(RETRY_BACKOFF_MS_CONFIG);
+    public long getRetryBaxkOff() {
+        return this.getLong(RETRY_BACKOFF_MS_CONFIG);
     }
 
     public String getKustoReporterErrorTopic() {
