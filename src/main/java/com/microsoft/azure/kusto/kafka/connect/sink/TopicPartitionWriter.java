@@ -34,6 +34,7 @@ public class TopicPartitionWriter {
     private long fileThreshold;
     private KustoSinkConfig kustoSinkConfig;
     private final Time time = new SystemTime();
+    Producer<byte[], byte[]> producer;
 
     FileWriter fileWriter;
     long currentOffset;
@@ -72,6 +73,10 @@ public class TopicPartitionWriter {
                         fileDescriptor.file.getName(), attempts, maxAttempts, sleepTimeMs, e.getMessage());
                     time.sleep(sleepTimeMs);
                 } else {
+                    List<byte[]> records = fileDescriptor.records;
+                    for (byte[] record : records) {
+                        sendCorruptedRecords(record);
+                    }
                     kustoSinkConfig.handleErrors("Ingestion Failed for file :" + fileDescriptor.file.getName(), e);
                 }
                 attempts++;
@@ -111,7 +116,14 @@ public class TopicPartitionWriter {
 
             value = valueWithSeparator;
         } else {
-            producer(record);
+            byte[] valueBytes = (byte[]) record.value();
+            byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
+            byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
+
+            System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
+            System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
+            value = valueWithSeparator;
+            sendCorruptedRecords(value);
         }
 
         if (value == null) {
@@ -134,6 +146,7 @@ public class TopicPartitionWriter {
                             attempts, maxAttempts, sleepTimeMs, e.getMessage());
                         time.sleep(sleepTimeMs);
                     } else {
+                        sendCorruptedRecords(value);
                         kustoSinkConfig.handleErrors("File write failed", e);
                     }
                     attempts++;
@@ -154,6 +167,8 @@ public class TopicPartitionWriter {
                 !shouldCompressData ? 0 : flushInterval,
                 shouldCompressData,
             kustoSinkConfig);
+        producer = createProducer();
+
     }
 
     public void close() {
@@ -172,21 +187,17 @@ public class TopicPartitionWriter {
                 || eventDataCompression != null);
     }
 
-    public void producer(SinkRecord sinkRecord) {
-        byte[] valueBytes = (byte[]) sinkRecord.value();
-        byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
-        byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
-
-        System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
-        System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
-        byte[] value = valueWithSeparator;
+    public Producer<byte[], byte[]> createProducer() {
         Properties properties = new Properties();
         properties.put("bootstrap.servers", kustoSinkConfig.getKustoReporterBootStrapServer());
         properties.put("key.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
         properties.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
         Producer<byte[], byte[]> producer = new KafkaProducer(properties);
-        ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(kustoSinkConfig.getKustoReporterErrorTopic(), value);
+        return producer;
+    }
 
+    public void sendCorruptedRecords(byte[] value) {
+        ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(kustoSinkConfig.getKustoReporterErrorTopic(), value);
         try {
             producer.send(record, (metadata, exception) -> {
                 if (exception != null) {

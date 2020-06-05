@@ -6,8 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
@@ -66,13 +65,12 @@ public class FileWriter implements Closeable {
 
     public synchronized void write(byte[] data) throws IOException {
         if (data == null || data.length == 0) return;
-
         if (currentFile == null) {
             openFile();
             resetFlushTimer(true);
         }
-
         outputStream.write(data);
+        currentFile.records.add(data);
 
         currentFile.rawBytes += data.length;
         currentFile.zippedBytes += countingStream.numBytes;
