@@ -1,5 +1,7 @@
 package com.microsoft.azure.kusto.kafka.connect.sink;
 
+import com.microsoft.azure.kusto.data.Client;
+import com.microsoft.azure.kusto.data.ClientFactory;
 import com.microsoft.azure.kusto.data.ConnectionStringBuilder;
 import com.microsoft.azure.kusto.ingest.IngestClient;
 import com.microsoft.azure.kusto.ingest.IngestionMapping;
@@ -22,6 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.util.*;
 
 /**
@@ -53,10 +58,10 @@ public class KustoSinkTask extends SinkTask {
             }
 
             ConnectionStringBuilder kcsb = ConnectionStringBuilder.createWithAadApplicationCredentials(
-                    config.getKustoUrl(),
-                    config.getKustoAuthAppid(),
-                    config.getKustoAuthAppkey(),
-                    config.getKustoAuthAuthority()
+                config.getKustoUrl(),
+                config.getKustoAuthAppid(),
+                config.getKustoAuthAppkey(),
+                config.getKustoAuthAuthority()
             );
             kcsb.setClientVersionForTracing(Version.CLIENT_NAME + ":" + Version.getVersion());
 
@@ -69,12 +74,11 @@ public class KustoSinkTask extends SinkTask {
             }
 
             return IngestClientFactory.createClient(ConnectionStringBuilder.createWithAadUserCredentials(
-                    config.getKustoUrl(),
-                    config.getKustoAuthUsername(),
-                    config.getKustoAuthPassword()
+                config.getKustoUrl(),
+                config.getKustoAuthUsername(),
+                config.getKustoAuthPassword()
             ));
         }
-
         throw new ConfigException("Kusto authentication method must be provided.");
     }
 

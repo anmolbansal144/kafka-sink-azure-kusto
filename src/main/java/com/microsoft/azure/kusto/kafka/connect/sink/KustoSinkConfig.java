@@ -1,8 +1,7 @@
 package com.microsoft.azure.kusto.kafka.connect.sink;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
@@ -88,6 +87,15 @@ public class KustoSinkConfig extends AbstractConfig {
     static final String KUSTO_REPORTER_BOOTSTRAP_SERVERS = "reporter.bootstrap.servers";
     static final String KUSTO_REPORTER_BOOTSTRAP_SERVERS_DEFAULT = "localhost:9092";
 
+    public static final String AVRO_CODEC_CONFIG = "avro.codec";
+    public static final String AVRO_CODEC_DEFAULT = "null";
+    public static final String AVRO_CODEC_DISPLAY = "Avro Compression Codec";
+    public static final String AVRO_CODEC_DOC = "The Avro compression codec to be used for output  "
+        + "files. Available values: null, deflate, snappy and bzip2 (CodecSource is org.apache"
+        + ".avro.file.CodecFactory)";
+    public static final String[] AVRO_SUPPORTED_CODECS = new String[]{"null", "deflate", "snappy",
+        "bzip2"};
+
 
 
     public KustoSinkConfig(ConfigDef config, Map<String, String> parsedConfig) {
@@ -114,7 +122,20 @@ public class KustoSinkConfig extends AbstractConfig {
                 .define(MAX_RETRIES_CONFIG, Type.INT, 5, Importance.LOW, MAX_RETRIES_DOC, "Retry", 2, ConfigDef.Width.SHORT, "Max Retries")
                 .define(RETRY_BACKOFF_MS_CONFIG, Type.LONG, 100L, Importance.LOW, RETRY_BACKOFF_MS_DOC, "Retry", 2, ConfigDef.Width.SHORT, "Retry Backoff (ms)")
                 .define(KUSTO_REPORTER_ERROR_TOPIC, Type.STRING, KUSTO_REPORTER_ERROR_TOPIC_DEFAULT, Importance.MEDIUM, "Topic to which corrupted records has been send.This topic has to be created mannualy")
-                .define(KUSTO_REPORTER_BOOTSTRAP_SERVERS, Type.STRING, KUSTO_REPORTER_BOOTSTRAP_SERVERS_DEFAULT, Importance.MEDIUM, "Address of the bootstrap server in which error topic has been created");
+                .define(KUSTO_REPORTER_BOOTSTRAP_SERVERS, Type.STRING, KUSTO_REPORTER_BOOTSTRAP_SERVERS_DEFAULT, Importance.MEDIUM, "Address of the bootstrap server in which error topic has been created")
+               .define(
+            AVRO_CODEC_CONFIG,
+            Type.STRING,
+            AVRO_CODEC_DEFAULT,
+            ConfigDef.ValidString.in(AVRO_SUPPORTED_CODECS),
+            Importance.LOW,
+            AVRO_CODEC_DOC,
+                   "Format",
+                   3,
+            ConfigDef.Width.MEDIUM,
+            AVRO_CODEC_DISPLAY
+        );
+
     }
 
     public String getKustoUrl() {
@@ -173,6 +194,13 @@ public class KustoSinkConfig extends AbstractConfig {
         return this.getString(KUSTO_REPORTER_BOOTSTRAP_SERVERS);
     }
 
+    public Configuration getHadoopConfiguration() {
+        return new Configuration();
+    }
+
+    public String getAvroCodec() {
+        return getString(AVRO_CODEC_CONFIG);
+    }
     /**
      * handle error based on configured behavior on error.
      */
