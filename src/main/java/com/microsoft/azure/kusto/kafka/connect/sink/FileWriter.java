@@ -94,7 +94,6 @@ public class FileWriter implements Closeable {
     public synchronized void writeParquet(SinkRecord record) throws IOException {
         if (record == null) return;
         if (currentFile == null) {
-            System.out.println("currentfile is null");
             openFile();
             resetFlushTimer(true);
         }
@@ -130,8 +129,7 @@ public class FileWriter implements Closeable {
         fos.getChannel().truncate(0);
 
         countingStream = new CountingOutputStream(fos);
-        //outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
-        outputStream = fos;
+        outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
         fileProps.file = file;
         currentFile = fileProps;
 
@@ -139,6 +137,7 @@ public class FileWriter implements Closeable {
         if (currentFile.path.toString().contains("parquet")) {
         recordWriter = parquetRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path);
         } else if (currentFile.path.toString().contains("avro")) {
+            outputStream = fos;
             recordWriter = avroRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path,outputStream);
         }
     }

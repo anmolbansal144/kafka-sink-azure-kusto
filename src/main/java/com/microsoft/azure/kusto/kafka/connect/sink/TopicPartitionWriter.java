@@ -58,25 +58,27 @@ public class TopicPartitionWriter {
     }
 
     public void handleRollFile(SourceFile fileDescriptor) {
-        //FileSourceInfo fileSourceInfo = new FileSourceInfo(fileDescriptor.path, fileDescriptor.rawBytes);
+        FileSourceInfo fileSourceInfo = new FileSourceInfo(fileDescriptor.path, fileDescriptor.rawBytes);
         System.out.println("--------------------------------xxxxxxxxx----------------------------------------------");
         final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
         int attempts = 1;
         boolean indexed = false;
         long x=0;
-        try {
-            Reader fileReader = new FileReader(fileDescriptor.path);
+        if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())) {
+            try {
+                Reader fileReader = new FileReader(fileDescriptor.path);
 
-            int data = fileReader.read();
-            while (data != -1) {
-                data = fileReader.read();
-                x += data;
+                int data = fileReader.read();
+                while (data != -1) {
+                    data = fileReader.read();
+                    x += data;
+                }
+                fileReader.close();
+            } catch (Exception e) {
+                System.out.println("error in reader");
             }
-            fileReader.close();
-        } catch (Exception e) {
-            System.out.println("error in reader");
+            fileSourceInfo = new FileSourceInfo(fileDescriptor.path, x);
         }
-        FileSourceInfo fileSourceInfo = new FileSourceInfo(fileDescriptor.path,x);
         while (!indexed) {
             try {
                 client.ingestFromFile(fileSourceInfo, ingestionProps);
@@ -112,13 +114,13 @@ public class TopicPartitionWriter {
         long nextOffset = fileWriter != null && fileWriter.isDirty() ? currentOffset + 1 : currentOffset;
 
         String compressionExtension = "";
-        if (shouldCompressData(ingestionProps, null) || eventDataCompression != null) {
-            if(eventDataCompression != null) {
-                compressionExtension = "." + eventDataCompression.toString();
-            } else {
-                compressionExtension = ".gz";
-            }
-        }
+//        if (shouldCompressData(ingestionProps, null) || eventDataCompression != null) {
+//            if(eventDataCompression != null) {
+//                compressionExtension = "." + eventDataCompression.toString();
+//            } else {
+//                compressionExtension = ".gz";
+//            }
+//        }
         return Paths.get(basePath, String.format("kafka_%s_%s_%d.%s%s", tp.topic(), tp.partition(), nextOffset, ingestionProps.getDataFormat(), compressionExtension)).toString();
     }
 
