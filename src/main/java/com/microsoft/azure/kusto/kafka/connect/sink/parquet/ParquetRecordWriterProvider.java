@@ -93,6 +93,13 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider<KustoSi
 
       @Override
       public void commit() {
+        try {
+          if (writer != null) {
+            writer.close();
+          }
+        } catch (IOException e) {
+          throw new ConnectException(e);
+        }
       }
     };
   }

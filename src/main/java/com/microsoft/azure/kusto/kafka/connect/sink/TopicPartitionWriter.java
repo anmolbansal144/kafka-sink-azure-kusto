@@ -64,7 +64,8 @@ public class TopicPartitionWriter {
         int attempts = 1;
         boolean indexed = false;
         long x=0;
-        if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())) {
+        if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString()) ||
+            ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())) {
             try {
                 Reader fileReader = new FileReader(fileDescriptor.path);
 
@@ -127,7 +128,6 @@ public class TopicPartitionWriter {
     public void writeRecord(SinkRecord record) {
         byte[] value = null;
         if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())) {
-            System.out.println("hello : " + record);
             if (record == null) {
                 this.currentOffset = record.kafkaOffset();
             } else {
@@ -140,7 +140,6 @@ public class TopicPartitionWriter {
                 }
             }
         } else if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())) {
-            System.out.println("hello : " + record);
             if (record == null) {
                 this.currentOffset = record.kafkaOffset();
             } else {

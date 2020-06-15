@@ -156,7 +156,7 @@ public class FileWriter implements Closeable {
 //                outputStream.flush();
 //            }
 
-            if(currentFile.path.toString().contains("avro")) {
+            if(currentFile.path.toString().contains("avro") || currentFile.path.toString().contains("parquet")) {
                 recordWriter.commit();
                 outputStream.flush();
             }
@@ -164,7 +164,7 @@ public class FileWriter implements Closeable {
             //currentFile.rawBytes += file.length();
             onRollCallback.accept(currentFile);
             if (delete){
-                dumpFile();
+                //dumpFile();
             }
         } else {
             outputStream.close();
