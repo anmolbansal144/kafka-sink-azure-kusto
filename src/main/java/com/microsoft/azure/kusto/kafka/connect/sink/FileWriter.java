@@ -1,7 +1,7 @@
 package com.microsoft.azure.kusto.kafka.connect.sink;
 
-import com.microsoft.azure.kusto.kafka.connect.sink.parquet.AvroRecordWriterProvider;
-import com.microsoft.azure.kusto.kafka.connect.sink.parquet.ParquetRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.AvroRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.ParquetRecordWriterProvider;
 import io.confluent.connect.storage.format.RecordWriter;
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -85,13 +84,12 @@ public class FileWriter implements Closeable {
         currentFile.numRecords++;
 
         if (this.flushInterval == 0 || currentFile.rawBytes > fileThreshold) {
-            System.out.println("flushInterval :" + flushInterval);
             rotate();
             resetFlushTimer(true);
         }
     }
 
-    public synchronized void writeParquet(SinkRecord record) throws IOException {
+    public synchronized void formatWriter(SinkRecord record) throws IOException {
         if (record == null) return;
         if (currentFile == null) {
             openFile();
@@ -133,7 +131,6 @@ public class FileWriter implements Closeable {
         fileProps.file = file;
         currentFile = fileProps;
 
-        System.out.println("new file");
         if (currentFile.path.toString().contains("parquet")) {
         recordWriter = parquetRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path);
         } else if (currentFile.path.toString().contains("avro")) {
@@ -231,7 +228,6 @@ public class FileWriter implements Closeable {
         while (!indexed) {
             try {
                 if (currentFile != null && currentFile.rawBytes > 0) {
-                    System.out.println("Ingestion Time");
                     rotate();
                 }
                 indexed = true;

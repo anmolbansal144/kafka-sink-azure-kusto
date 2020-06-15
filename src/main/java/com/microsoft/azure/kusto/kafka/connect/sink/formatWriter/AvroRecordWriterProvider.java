@@ -1,4 +1,4 @@
-package com.microsoft.azure.kusto.kafka.connect.sink.parquet;
+package com.microsoft.azure.kusto.kafka.connect.sink.formatWriter;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.storage.format.RecordWriter;
@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.kafka.connect.data.Schema;
 import com.microsoft.azure.kusto.kafka.connect.sink.KustoSinkConfig;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -59,7 +58,6 @@ public class AvroRecordWriterProvider implements RecordWriterProvider<KustoSinkC
           // AvroData wraps primitive types so their schema can be included. We need to unwrap
           // NonRecordContainers to just their value to properly handle these types
           if (value instanceof NonRecordContainer) {
-            System.out.println("NonRecordContainer");
             writer.append(((NonRecordContainer) value).getValue());
           } else {
             writer.append(value);

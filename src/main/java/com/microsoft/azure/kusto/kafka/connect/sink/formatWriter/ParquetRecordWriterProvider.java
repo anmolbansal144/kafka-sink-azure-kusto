@@ -1,4 +1,4 @@
-package com.microsoft.azure.kusto.kafka.connect.sink.parquet;
+package com.microsoft.azure.kusto.kafka.connect.sink.formatWriter;
 
 
 import io.confluent.connect.avro.AvroData;
@@ -17,9 +17,7 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.parquet.avro.AvroParquetWriter;
 import com.microsoft.azure.kusto.kafka.connect.sink.KustoSinkConfig;
 
-import java.io.FilterOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 
 public class ParquetRecordWriterProvider implements RecordWriterProvider<KustoSinkConfig> {
 

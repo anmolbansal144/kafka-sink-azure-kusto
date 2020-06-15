@@ -5,27 +5,20 @@ import com.microsoft.azure.kusto.ingest.IngestionMapping;
 import com.microsoft.azure.kusto.ingest.IngestionProperties;
 import com.microsoft.azure.kusto.ingest.source.CompressionType;
 import com.microsoft.azure.kusto.ingest.source.FileSourceInfo;
-import org.apache.avro.file.DataFileReader;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericDatumReader;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.protocol.types.Field;
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.json.JSONArray;
-import org.json.JSONException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
@@ -59,11 +52,10 @@ public class TopicPartitionWriter {
 
     public void handleRollFile(SourceFile fileDescriptor) {
         FileSourceInfo fileSourceInfo = new FileSourceInfo(fileDescriptor.path, fileDescriptor.rawBytes);
-        System.out.println("--------------------------------xxxxxxxxx----------------------------------------------");
         final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
         int attempts = 1;
         boolean indexed = false;
-        long x=0;
+        long size=0;
         if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString()) ||
             ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())) {
             try {
@@ -72,20 +64,18 @@ public class TopicPartitionWriter {
                 int data = fileReader.read();
                 while (data != -1) {
                     data = fileReader.read();
-                    x += data;
+                    size += data;
                 }
                 fileReader.close();
             } catch (Exception e) {
-                System.out.println("error in reader");
+                kustoSinkConfig.handleErrors("error in rar byte count",e);
+
             }
-            fileSourceInfo = new FileSourceInfo(fileDescriptor.path, x);
+            fileSourceInfo = new FileSourceInfo(fileDescriptor.path, size);
         }
         while (!indexed) {
             try {
                 client.ingestFromFile(fileSourceInfo, ingestionProps);
-                System.out.println("rawBytesIngestion" + fileSourceInfo.getRawSizeInBytes());
-                System.out.println("filePath" + fileDescriptor.path);
-                System.out.println("Ingestion done");
                 log.info(String.format("Kusto ingestion: file (%s) of size (%s) at current offset (%s)", fileDescriptor.path, fileDescriptor.rawBytes, currentOffset));
                 this.lastCommittedOffset = currentOffset;
                 indexed = true;
@@ -100,7 +90,6 @@ public class TopicPartitionWriter {
                 } else {
                     List<byte[]> records = fileDescriptor.records;
                     for (byte[] record : records) {
-                        System.out.println("error :" + record);
                         sendCorruptedRecords(record);
                     }
                     kustoSinkConfig.handleErrors("Ingestion Failed for file :" + fileDescriptor.file.getName(), e);
@@ -127,25 +116,14 @@ public class TopicPartitionWriter {
 
     public void writeRecord(SinkRecord record) {
         byte[] value = null;
-        if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())) {
-            if (record == null) {
-                this.currentOffset = record.kafkaOffset();
-            } else {
-                try {
-                this.currentOffset = record.kafkaOffset();
-                fileWriter.writeParquet(record);
-                }
-                catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        } else if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())) {
+        if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())
+        ||ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())) {
             if (record == null) {
                 this.currentOffset = record.kafkaOffset();
             } else {
                 try {
                     this.currentOffset = record.kafkaOffset();
-                    fileWriter.writeParquet(record);
+                    fileWriter.formatWriter(record);
                 }
                 catch (Exception e) {
                     e.printStackTrace();
@@ -187,7 +165,6 @@ public class TopicPartitionWriter {
                     try {
                         this.currentOffset = record.kafkaOffset();
                         fileWriter.write(value);
-                        System.out.println("records" + record.value() + " : " + value);
                         indexed = true;
                     } catch (IOException e) {
                         if (attempts < maxAttempts) {
@@ -256,10 +233,8 @@ public class TopicPartitionWriter {
         try {
             producer.send(record, (metadata, exception) -> {
                 if (exception != null) {
-                    System.out.println("exception");
                     kustoSinkConfig.handleErrors(String.format("Failed to log missing record in topic %s",kustoSinkConfig.getKustoReporterErrorTopic()), exception);
                 }
-                System.out.println("record success");
             });
         } catch (IllegalStateException e) {
             /*
