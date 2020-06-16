@@ -68,7 +68,7 @@ public class TopicPartitionWriter {
                 }
                 fileReader.close();
             } catch (Exception e) {
-                kustoSinkConfig.handleErrors("error in rar byte count",e);
+                kustoSinkConfig.handleErrors("error in raw byte count",e);
 
             }
             fileSourceInfo = new FileSourceInfo(fileDescriptor.path, size);

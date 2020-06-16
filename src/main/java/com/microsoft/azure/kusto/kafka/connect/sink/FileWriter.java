@@ -127,15 +127,17 @@ public class FileWriter implements Closeable {
         fos.getChannel().truncate(0);
 
         countingStream = new CountingOutputStream(fos);
-        outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
         fileProps.file = file;
         currentFile = fileProps;
 
         if (currentFile.path.toString().contains("parquet")) {
         recordWriter = parquetRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path);
-        } else if (currentFile.path.toString().contains("avro")) {
+        }
+        else if (currentFile.path.toString().contains("avro")) {
             outputStream = fos;
             recordWriter = avroRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path,outputStream);
+        } else {
+            outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
         }
     }
 
@@ -155,9 +157,9 @@ public class FileWriter implements Closeable {
 
             if(currentFile.path.toString().contains("avro") || currentFile.path.toString().contains("parquet")) {
                 recordWriter.commit();
+            } else {
                 outputStream.flush();
             }
-            outputStream.flush();
             //currentFile.rawBytes += file.length();
             onRollCallback.accept(currentFile);
             if (delete){
@@ -274,6 +276,7 @@ public class FileWriter implements Closeable {
             out.write(b, off, len);
             this.numBytes += len;
         }
+
     }
 }
 
