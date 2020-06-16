@@ -122,7 +122,9 @@ public class TopicPartitionWriter {
     public void writeRecord(SinkRecord record) {
         byte[] value = null;
         if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())
-        ||ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())) {
+        ||ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())
+        ||ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.json.toString())
+        ||ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.orc.toString())) {
             if (record == null) {
                 this.currentOffset = record.kafkaOffset();
             } else {

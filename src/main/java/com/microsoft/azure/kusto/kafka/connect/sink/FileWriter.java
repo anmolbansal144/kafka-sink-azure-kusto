@@ -1,10 +1,13 @@
 package com.microsoft.azure.kusto.kafka.connect.sink;
 
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.AvroRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.JsonRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.OrcRecordWriterProvider;
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.ParquetRecordWriterProvider;
 import io.confluent.connect.storage.format.RecordWriter;
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +40,9 @@ public class FileWriter implements Closeable {
     private final Time time = new SystemTime();
     private ParquetRecordWriterProvider parquetRecordWriterProvider = new ParquetRecordWriterProvider();
     private AvroRecordWriterProvider avroRecordWriterProvider = new AvroRecordWriterProvider();
+    private JsonRecordWriterProvider jsonRecordWriterProvider = new JsonRecordWriterProvider(new JsonConverter());
+    private OrcRecordWriterProvider orcRecordWriterProvider = new OrcRecordWriterProvider();
+
     RecordWriter recordWriter;
     File file;
     // Don't remove! File descriptor is kept so that the file is not deleted when stream is closed
@@ -136,8 +142,13 @@ public class FileWriter implements Closeable {
         else if (currentFile.path.toString().contains("avro")) {
             outputStream = new GZIPOutputStream(fos);
             recordWriter = avroRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path,outputStream);
+        } else if (currentFile.path.contains("json")) {
+            outputStream = fos;
+            recordWriter = jsonRecordWriterProvider.getRecordWriter(kustoConfig, currentFile.path, outputStream);
+        } else if (currentFile.path.contains("orc")) {
+            recordWriter = orcRecordWriterProvider.getRecordWriter(kustoConfig, currentFile.path);
         } else {
-            outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
+        outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
         }
     }
 
