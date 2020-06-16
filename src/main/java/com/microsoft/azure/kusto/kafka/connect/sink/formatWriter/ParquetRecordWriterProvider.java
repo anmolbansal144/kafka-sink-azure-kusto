@@ -1,9 +1,8 @@
 package com.microsoft.azure.kusto.kafka.connect.sink.formatWriter;
 
 
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriter;
 import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.storage.format.RecordWriter;
-import io.confluent.connect.storage.format.RecordWriterProvider;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -16,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.parquet.avro.AvroParquetWriter;
 import com.microsoft.azure.kusto.kafka.connect.sink.KustoSinkConfig;
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
+
 
 import java.io.IOException;
 

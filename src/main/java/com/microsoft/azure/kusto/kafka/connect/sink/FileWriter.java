@@ -1,8 +1,8 @@
 package com.microsoft.azure.kusto.kafka.connect.sink;
 
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriter;
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.AvroRecordWriterProvider;
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.ParquetRecordWriterProvider;
-import io.confluent.connect.storage.format.RecordWriter;
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.connect.sink.SinkRecord;

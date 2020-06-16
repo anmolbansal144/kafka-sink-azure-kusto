@@ -211,25 +211,16 @@
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.apache.parquet/parquet-hadoop -->
         <dependency>
-            <groupId>org.apache.parquet</groupId>
-            <artifactId>parquet-hadoop</artifactId>
-            <version>1.8.1</version>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client</artifactId>
+            <version>3.2.1</version>
         </dependency>
         <dependency>
-        <groupId>com.github.confluentinc.kafka-connect-storage-common</groupId>
-        <artifactId>kafka-connect-storage-format</artifactId>
-        <version>v3.2.2</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.pentaho</groupId>
-                    <artifactId>pentaho-aggdesigner-algorithm</artifactId>
-                </exclusion>
-            </exclusions>
-    </dependency>
-
-        <!-- https://mvnrepository.com/artifact/org.apache.parquet/parquet-avro -->
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-avro-converter</artifactId>
+            <version>5.2.1</version>
+        </dependency>
         <dependency>
             <groupId>org.apache.parquet</groupId>
             <artifactId>parquet-avro</artifactId>
@@ -237,8 +228,6 @@
         </dependency>
 
     </dependencies>
-
-
 
     <repositories>
         <repository>
