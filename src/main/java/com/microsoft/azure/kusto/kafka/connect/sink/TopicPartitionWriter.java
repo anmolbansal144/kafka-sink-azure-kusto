@@ -111,6 +111,11 @@ public class TopicPartitionWriter {
 //                compressionExtension = ".gz";
 //            }
 //        }
+        if (ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())){
+            compressionExtension = ".gz";
+        }
+
+
         return Paths.get(basePath, String.format("kafka_%s_%s_%d.%s%s", tp.topic(), tp.partition(), nextOffset, ingestionProps.getDataFormat(), compressionExtension)).toString();
     }
 

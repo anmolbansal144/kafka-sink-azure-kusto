@@ -134,7 +134,7 @@ public class FileWriter implements Closeable {
         recordWriter = parquetRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path);
         }
         else if (currentFile.path.toString().contains("avro")) {
-            outputStream = fos;
+            outputStream = new GZIPOutputStream(fos);
             recordWriter = avroRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path,outputStream);
         } else {
             outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
@@ -155,7 +155,11 @@ public class FileWriter implements Closeable {
 //                outputStream.flush();
 //            }
 
-            if(currentFile.path.toString().contains("avro") || currentFile.path.toString().contains("parquet")) {
+            if(currentFile.path.toString().contains("avro")) {
+                recordWriter.commit();
+                GZIPOutputStream gzip = (GZIPOutputStream) outputStream;
+                gzip.finish();
+            } else if(currentFile.path.toString().contains("parquet")) {
                 recordWriter.commit();
             } else {
                 outputStream.flush();
@@ -163,7 +167,7 @@ public class FileWriter implements Closeable {
             //currentFile.rawBytes += file.length();
             onRollCallback.accept(currentFile);
             if (delete){
-                //dumpFile();
+                dumpFile();
             }
         } else {
             outputStream.close();
@@ -171,7 +175,9 @@ public class FileWriter implements Closeable {
     }
 
     private void dumpFile() throws IOException {
-        outputStream.close();
+        if (!currentFile.path.toString().contains("parquet")) {
+            outputStream.close();
+        }
         currentFileDescriptor = null;
         boolean deleted = currentFile.file.delete();
         if (!deleted) {
