@@ -110,7 +110,7 @@ public class KustoSinkTask extends SinkTask {
                         }
 
                         String mappingRef = mapping.optString("mapping");
-
+                        log.info("db{},table{},format{},mapping{}",db,table,format,mappingRef);
                         if (mappingRef != null && !mappingRef.isEmpty()) {
                             if (format != null) {
                                 if (format.equals(IngestionProperties.DATA_FORMAT.json.toString())){
@@ -131,6 +131,7 @@ public class KustoSinkTask extends SinkTask {
                         topicIngestionProperties.ingestionProperties = props;
                         result.put(mapping.getString("topic"), topicIngestionProperties);
                     } catch (Exception ex) {
+                        log.error("TOPICMAPPING Validation",ex);
                         throw new ConfigException("Malformed topics to kusto ingestion props mappings", ex);
                     }
                 }
@@ -215,7 +216,7 @@ public class KustoSinkTask extends SinkTask {
             open(context.assignment());
 
         } catch (ConfigException ex) {
-            throw new ConnectException(String.format("Kusto Connector failed to start due to configuration error. %s", ex.getMessage()));
+            throw new ConnectException(String.format("Kusto Connector failed to start due to configuration error.", ex));
         } catch (Exception e) {
             e.printStackTrace();
         }

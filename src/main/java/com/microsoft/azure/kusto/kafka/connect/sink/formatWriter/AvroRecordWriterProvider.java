@@ -21,19 +21,14 @@ import java.io.OutputStream;
 public class AvroRecordWriterProvider implements RecordWriterProvider<KustoSinkConfig> {
   private static final Logger log = LoggerFactory.getLogger(AvroRecordWriterProvider.class);
   private final AvroData avroData = new AvroData(50);
-  OutputStream out = null;
+
   @Override
   public String getExtension() {
     return null;
   }
 
-  public RecordWriter getRecordWriter(KustoSinkConfig conf, String filename, OutputStream out) {
-    this.out = out;
-    return getRecordWriter(conf, filename);
-  }
-
   @Override
-  public RecordWriter getRecordWriter(KustoSinkConfig conf, String filename) {
+  public RecordWriter getRecordWriter(KustoSinkConfig conf, String filename, OutputStream out) {
     return new RecordWriter() {
       final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
       Schema schema;

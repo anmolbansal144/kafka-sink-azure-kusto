@@ -16,20 +16,22 @@ package com.microsoft.azure.kusto.kafka.connect.sink.formatWriter;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.azure.kusto.kafka.connect.sink.KustoSinkConfig;
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriter;
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.kafka.connect.storage.ConverterConfig;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
-
-import io.confluent.connect.storage.format.RecordWriter;
-import io.confluent.connect.storage.format.RecordWriterProvider;
 
 public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkConfig> {
 
@@ -38,12 +40,8 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
     private static final byte[] LINE_SEPARATOR_BYTES
             = LINE_SEPARATOR.getBytes(StandardCharsets.UTF_8);
     private final ObjectMapper mapper = new ObjectMapper();
-    private final JsonConverter converter;
+    private final JsonConverter converter = new JsonConverter();
     OutputStream out = null;
-
-    public JsonRecordWriterProvider(JsonConverter converter) {
-        this.converter = converter;
-    }
 
     @Override
     public String getExtension() {
@@ -52,10 +50,15 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
 
     public RecordWriter getRecordWriter(KustoSinkConfig conf, String filename, OutputStream out) {
         this.out = out;
+        Map<String, String> config = new HashMap<>();
+        config.put("schemas.cache.size", "100");
+        config.put("schemas.enable","false");
+        config.put(ConverterConfig.TYPE_CONFIG, "VALUE");
+        this.converter.configure(config,false);
         return getRecordWriter(conf, filename);
     }
 
-    @Override
+
     public RecordWriter getRecordWriter(KustoSinkConfig conf, final String filename) {
         try {
             return new RecordWriter() {
@@ -74,6 +77,8 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
                             record.valueSchema(),
                             value
                     );
+                    out.write(rawJson);
+                    out.write(LINE_SEPARATOR_BYTES);
                 } else {
                     writer.writeObject(value);
                     writer.writeRaw(LINE_SEPARATOR);
@@ -88,6 +93,7 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
             try {
                 // Flush is required here, because closing the writer will close the underlying S3
                 // output stream before committing any data to S3.
+                out.flush();
                 writer.flush();
             } catch (IOException e) {
                 throw new ConnectException(e);
@@ -97,6 +103,7 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
         @Override
         public void close() {
             try {
+                out.close();
                 writer.close();
             } catch (IOException e) {
                 throw new ConnectException(e);

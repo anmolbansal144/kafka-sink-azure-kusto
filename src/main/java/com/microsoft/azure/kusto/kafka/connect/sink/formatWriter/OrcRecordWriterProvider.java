@@ -1,10 +1,12 @@
 package com.microsoft.azure.kusto.kafka.connect.sink.formatWriter;
 
 import com.microsoft.azure.kusto.kafka.connect.sink.KustoSinkConfig;
-import io.confluent.connect.storage.format.RecordWriter;
-import io.confluent.connect.storage.format.RecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriter;
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
 import org.apache.hadoop.hive.ql.io.orc.Writer;
@@ -14,14 +16,16 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.orc.TypeDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 //import org.apache.orc.Writer;
 //import org.apache.orc.OrcFile;
-;
+;import static io.confluent.kafka.serializers.AvroSchemaUtils.getSchema;
 
 public class OrcRecordWriterProvider implements RecordWriterProvider<KustoSinkConfig> {
     private static final Logger log = LoggerFactory.getLogger(OrcRecordWriterProvider.class);
@@ -33,7 +37,7 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<KustoSinkCo
     }
 
     @Override
-    public RecordWriter getRecordWriter(KustoSinkConfig conf, String filename) {
+    public RecordWriter getRecordWriter(KustoSinkConfig conf, String filename, OutputStream out) {
         Path path = new Path(filename);
 
         return new RecordWriter() {
@@ -61,8 +65,9 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<KustoSinkCo
                         ObjectInspector objectInspector = OrcStruct.createObjectInspector(typeInfo);
 
                         log.info("Opening ORC record writer for: {}", filename);
+                        Configuration conf =  new Configuration();
                         try {
-                            writer = OrcFile.createWriter(path, OrcFile.writerOptions(conf.getHadoopConfiguration())
+                            writer = OrcFile.createWriter(path, OrcFile.writerOptions(conf)
                                             .inspector(objectInspector)
                                             .callback(writerCallback));
                         } catch (IOException e) {
