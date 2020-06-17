@@ -102,15 +102,14 @@ public class TopicPartitionWriter {
 
     public String getFilePath() {
         long nextOffset = fileWriter != null && fileWriter.isDirty() ? currentOffset + 1 : currentOffset;
-
         String compressionExtension = "";
-//        if (shouldCompressData(ingestionProps, null) || eventDataCompression != null) {
-//            if(eventDataCompression != null) {
-//                compressionExtension = "." + eventDataCompression.toString();
-//            } else {
-//                compressionExtension = ".gz";
-//            }
-//        }
+        if (shouldCompressData(ingestionProps, null) || eventDataCompression != null) {
+            if(eventDataCompression != null) {
+                compressionExtension = "." + eventDataCompression.toString();
+            } else {
+                compressionExtension = ".gz";
+            }
+        }
         if (ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())){
             compressionExtension = ".gz";
         }
@@ -121,8 +120,6 @@ public class TopicPartitionWriter {
 
     public void writeRecord(SinkRecord record) {
         byte[] value = null;
-        if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())
-        ||ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())) {
             if (record == null) {
                 this.currentOffset = record.kafkaOffset();
             } else {
@@ -134,60 +131,60 @@ public class TopicPartitionWriter {
                     e.printStackTrace();
                 }
             }
-        }
-        else {
-
-            // TODO: should probably refactor this code out into a value transformer
-            if (record.valueSchema() == null || record.valueSchema().type() == Schema.Type.STRING) {
-                value = String.format("%s\n", record.value()).getBytes(StandardCharsets.UTF_8);
-            } else if (record.valueSchema().type() == Schema.Type.BYTES) {
-                byte[] valueBytes = (byte[]) record.value();
-                byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
-                byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
-
-                System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
-                System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
-
-                value = valueWithSeparator;
-            } else {
-                byte[] valueBytes = (byte[]) record.value();
-                byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
-                byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
-
-                System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
-                System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
-                value = valueWithSeparator;
-                sendCorruptedRecords(value);
-            }
-
-            if (value == null) {
-                this.currentOffset = record.kafkaOffset();
-            } else {
-                final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
-                int attempts = 1;
-                boolean indexed = false;
-                while (!indexed) {
-                    try {
-                        this.currentOffset = record.kafkaOffset();
-                        fileWriter.write(value);
-                        indexed = true;
-                    } catch (IOException e) {
-                        if (attempts < maxAttempts) {
-                            long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
-                                kustoSinkConfig.getRetryBaxkOff());
-                            log.warn("File write failed with attempt {}/{}, "
-                                    + "will attempt retry after {} ms. Failure reason: {}",
-                                attempts, maxAttempts, sleepTimeMs, e.getMessage());
-                            time.sleep(sleepTimeMs);
-                        } else {
-                            sendCorruptedRecords(value);
-                            kustoSinkConfig.handleErrors("File write failed", e);
-                        }
-                        attempts++;
-                    }
-                }
-            }
-        }
+//        }
+//        else {
+//
+//            // TODO: should probably refactor this code out into a value transformer
+//            if (record.valueSchema() == null || record.valueSchema().type() == Schema.Type.STRING) {
+//                value = String.format("%s\n", record.value()).getBytes(StandardCharsets.UTF_8);
+//            } else if (record.valueSchema().type() == Schema.Type.BYTES) {
+//                byte[] valueBytes = (byte[]) record.value();
+//                byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
+//                byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
+//
+//                System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
+//                System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
+//
+//                value = valueWithSeparator;
+//            } else {
+//                byte[] valueBytes = (byte[]) record.value();
+//                byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
+//                byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
+//
+//                System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
+//                System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
+//                value = valueWithSeparator;
+//                sendCorruptedRecords(value);
+//            }
+//
+//            if (value == null) {
+//                this.currentOffset = record.kafkaOffset();
+//            } else {
+//                final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
+//                int attempts = 1;
+//                boolean indexed = false;
+//                while (!indexed) {
+//                    try {
+//                        this.currentOffset = record.kafkaOffset();
+//                        fileWriter.write(value);
+//                        indexed = true;
+//                    } catch (IOException e) {
+//                        if (attempts < maxAttempts) {
+//                            long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
+//                                kustoSinkConfig.getRetryBaxkOff());
+//                            log.warn("File write failed with attempt {}/{}, "
+//                                    + "will attempt retry after {} ms. Failure reason: {}",
+//                                attempts, maxAttempts, sleepTimeMs, e.getMessage());
+//                            time.sleep(sleepTimeMs);
+//                        } else {
+//                            sendCorruptedRecords(value);
+//                            kustoSinkConfig.handleErrors("File write failed", e);
+//                        }
+//                        attempts++;
+//                    }
+//                }
+//            }
+//        }
     }
 
     public void open() {
@@ -199,10 +196,8 @@ public class TopicPartitionWriter {
                 fileThreshold,
                 this::handleRollFile,
                 this::getFilePath,
-                //!shouldCompressData ? 0 : flushInterval,
-                flushInterval,
-                //shouldCompressData,
-            !shouldCompressData,
+                !shouldCompressData ? 0 : flushInterval,
+                shouldCompressData,
             kustoSinkConfig);
         producer = createProducer();
 
@@ -218,8 +213,7 @@ public class TopicPartitionWriter {
     }
 
     static boolean shouldCompressData(IngestionProperties ingestionProps, CompressionType eventDataCompression) {
-        return !(ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.avro.toString())
-                || ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.parquet.toString())
+        return !(ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.parquet.toString())
                 || ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.orc.toString())
                 || eventDataCompression != null);
     }

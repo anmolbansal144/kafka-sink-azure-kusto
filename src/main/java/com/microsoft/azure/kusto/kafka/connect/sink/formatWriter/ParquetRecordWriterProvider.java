@@ -19,6 +19,7 @@ import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
 
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 public class ParquetRecordWriterProvider implements RecordWriterProvider<KustoSinkConfig> {
 
@@ -26,7 +27,7 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider<KustoSi
   private final AvroData avroData = new AvroData(50);
 
   @Override
-  public RecordWriter getRecordWriter(final KustoSinkConfig conf, final String filename) {
+  public RecordWriter getRecordWriter(final KustoSinkConfig conf, final String filename, OutputStream out) {
     return new RecordWriter() {
       Schema schema = null;
       final CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;

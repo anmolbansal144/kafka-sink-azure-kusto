@@ -1,7 +1,10 @@
 package com.microsoft.azure.kusto.kafka.connect.sink;
 
 import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriter;
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.AvroRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.ByteArrayRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.CsvRecordWriterProvider;
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.ParquetRecordWriterProvider;
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
@@ -35,8 +38,7 @@ public class FileWriter implements Closeable {
     private long fileThreshold;
     private KustoSinkConfig kustoConfig;
     private final Time time = new SystemTime();
-    private ParquetRecordWriterProvider parquetRecordWriterProvider = new ParquetRecordWriterProvider();
-    private AvroRecordWriterProvider avroRecordWriterProvider = new AvroRecordWriterProvider();
+    private RecordWriterProvider recordWriterProvider;
     RecordWriter recordWriter;
     File file;
     // Don't remove! File descriptor is kept so that the file is not deleted when stream is closed
@@ -63,6 +65,20 @@ public class FileWriter implements Closeable {
         this.flushInterval = flushInterval;
         this.shouldCompressData = shouldCompressData;
         kustoConfig = config;
+        if(getFilePath.get().contains("avro")) {
+            recordWriterProvider = new AvroRecordWriterProvider();
+        }
+        if(getFilePath.get().contains("parquet")) {
+            recordWriterProvider = new ParquetRecordWriterProvider();
+        }
+        if(getFilePath.get().contains("csv")) {
+            recordWriterProvider = new CsvRecordWriterProvider();
+
+        }
+        if(getFilePath.get().contains("bin")) {
+            recordWriterProvider = new ByteArrayRecordWriterProvider();
+
+        }
 
     }
 
@@ -129,16 +145,9 @@ public class FileWriter implements Closeable {
         countingStream = new CountingOutputStream(fos);
         fileProps.file = file;
         currentFile = fileProps;
+        outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
+        recordWriter = recordWriterProvider.getRecordWriter(kustoConfig,currentFile.path,outputStream);
 
-        if (currentFile.path.toString().contains("parquet")) {
-        recordWriter = parquetRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path);
-        }
-        else if (currentFile.path.toString().contains("avro")) {
-            outputStream = new GZIPOutputStream(fos);
-            recordWriter = avroRecordWriterProvider.getRecordWriter(kustoConfig,currentFile.path,outputStream);
-        } else {
-            outputStream = shouldCompressData ? new GZIPOutputStream(countingStream) : countingStream;
-        }
     }
 
     void rotate() throws IOException {
@@ -147,24 +156,19 @@ public class FileWriter implements Closeable {
     }
 
     void finishFile(Boolean delete) throws IOException {
-        if(isDirty()){
-//            if(shouldCompressData){
-//                GZIPOutputStream gzip = (GZIPOutputStream) outputStream;
-//                gzip.finish();
-//            } else {
-//                outputStream.flush();
-//            }
-
-            if(currentFile.path.toString().contains("avro")) {
+        if(isDirty()) {
+            if (!currentFile.path.toString().contains("parquet")) {
                 recordWriter.commit();
-                GZIPOutputStream gzip = (GZIPOutputStream) outputStream;
-                gzip.finish();
-            } else if(currentFile.path.toString().contains("parquet")) {
-                recordWriter.commit();
+                if(shouldCompressData){
+                    GZIPOutputStream gzip = (GZIPOutputStream) outputStream;
+                    gzip.finish();
+                } else {
+                    outputStream.flush();
+                }
             } else {
+                recordWriter.commit();
                 outputStream.flush();
             }
-            //currentFile.rawBytes += file.length();
             onRollCallback.accept(currentFile);
             if (delete){
                 dumpFile();
@@ -172,6 +176,7 @@ public class FileWriter implements Closeable {
         } else {
             outputStream.close();
         }
+
     }
 
     private void dumpFile() throws IOException {
