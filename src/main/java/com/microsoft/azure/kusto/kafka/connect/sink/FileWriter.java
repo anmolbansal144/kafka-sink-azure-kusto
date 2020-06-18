@@ -98,17 +98,8 @@ public class FileWriter implements Closeable {
     public synchronized void writeData(SinkRecord record) throws IOException {
         if (record == null) return;
         byte[] value = null;
-        if (record.value() instanceof Map) {
-            recordWriterProvider = new JsonRecordWriterProvider();
-        }
-        else if (record.valueSchema().type() == Schema.Type.STRUCT) {
-            recordWriterProvider = new AvroRecordWriterProvider();
-        }
-        else if (record.valueSchema().type() == Schema.Type.STRING){
-            recordWriterProvider = new StringRecordWriterProvider();
-        }
-        else if (record.valueSchema().type() == Schema.Type.BYTES){
-            recordWriterProvider = new ByteRecordWriterProvider();
+        if (recordWriterProvider == null) {
+            initializeRecordWriter(record);
         }
         if (currentFile == null) {
             openFile();
@@ -123,6 +114,21 @@ public class FileWriter implements Closeable {
         if (this.flushInterval == 0 || currentFile.rawBytes > fileThreshold) {
             rotate();
             resetFlushTimer(true);
+        }
+    }
+
+    public void initializeRecordWriter(SinkRecord record) {
+        if (record.value() instanceof Map) {
+            recordWriterProvider = new JsonRecordWriterProvider();
+        }
+        else if (record.valueSchema().type() == Schema.Type.STRUCT) {
+            recordWriterProvider = new AvroRecordWriterProvider();
+        }
+        else if (record.valueSchema().type() == Schema.Type.STRING){
+            recordWriterProvider = new StringRecordWriterProvider();
+        }
+        else if (record.valueSchema().type() == Schema.Type.BYTES){
+            recordWriterProvider = new ByteRecordWriterProvider();
         }
     }
 
