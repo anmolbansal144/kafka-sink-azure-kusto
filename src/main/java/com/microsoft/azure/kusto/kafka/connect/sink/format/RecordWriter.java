@@ -2,6 +2,7 @@ package com.microsoft.azure.kusto.kafka.connect.sink.format;
 
 import org.apache.kafka.connect.sink.SinkRecord;
 import java.io.Closeable;
+import java.io.IOException;
 
 public interface RecordWriter extends Closeable {
   /**
@@ -9,7 +10,7 @@ public interface RecordWriter extends Closeable {
    *
    * @param record the record to persist.
    */
-  void write(SinkRecord record);
+  void write(SinkRecord record) throws IOException;
 
   /**
    * Close this writer.
@@ -21,4 +22,5 @@ public interface RecordWriter extends Closeable {
    * close the writer.
    */
   void commit();
+  long getDataSize();
 }

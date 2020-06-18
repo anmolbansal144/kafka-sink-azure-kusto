@@ -55,24 +55,6 @@ public class TopicPartitionWriter {
         final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
         int attempts = 1;
         boolean indexed = false;
-        long size=0;
-        if(ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString()) ||
-            ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.parquet.toString())) {
-            try {
-                Reader fileReader = new FileReader(fileDescriptor.path);
-
-                int data = fileReader.read();
-                while (data != -1) {
-                    data = fileReader.read();
-                    size += data;
-                }
-                fileReader.close();
-            } catch (Exception e) {
-                kustoSinkConfig.handleErrors("error in raw byte count",e);
-
-            }
-            fileSourceInfo = new FileSourceInfo(fileDescriptor.path, size);
-        }
         while (!indexed) {
             try {
                 client.ingestFromFile(fileSourceInfo, ingestionProps);
@@ -110,81 +92,38 @@ public class TopicPartitionWriter {
                 compressionExtension = ".gz";
             }
         }
-        if (ingestionProps.getDataFormat().equals(IngestionMapping.IngestionMappingKind.avro.toString())){
-            compressionExtension = ".gz";
-        }
-
-
         return Paths.get(basePath, String.format("kafka_%s_%s_%d.%s%s", tp.topic(), tp.partition(), nextOffset, ingestionProps.getDataFormat(), compressionExtension)).toString();
     }
 
     public void writeRecord(SinkRecord record) {
-        byte[] value = null;
-            if (record == null) {
-                this.currentOffset = record.kafkaOffset();
-            } else {
+        if (record == null) {
+            this.currentOffset = record.kafkaOffset();
+        }
+        else {
+            final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
+            int attempts = 1;
+            boolean indexed = false;
+            while (!indexed) {
                 try {
                     this.currentOffset = record.kafkaOffset();
-                    fileWriter.formatWriter(record);
-                }
-                catch (Exception e) {
-                    e.printStackTrace();
+                    fileWriter.writeData(record);
+                    indexed = true;
+                } catch (IOException e) {
+                    if (attempts < maxAttempts) {
+                        long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
+                            kustoSinkConfig.getRetryBaxkOff());
+                        log.warn("File write failed with attempt {}/{}, "
+                                + "will attempt retry after {} ms. Failure reason: {}",
+                            attempts, maxAttempts, sleepTimeMs, e.getMessage());
+                        time.sleep(sleepTimeMs);
+                    } else {
+                        //sendCorruptedRecords();
+                        kustoSinkConfig.handleErrors("File write failed", e);
+                    }
+                    attempts++;
                 }
             }
-//        }
-//        else {
-//
-//            // TODO: should probably refactor this code out into a value transformer
-//            if (record.valueSchema() == null || record.valueSchema().type() == Schema.Type.STRING) {
-//                value = String.format("%s\n", record.value()).getBytes(StandardCharsets.UTF_8);
-//            } else if (record.valueSchema().type() == Schema.Type.BYTES) {
-//                byte[] valueBytes = (byte[]) record.value();
-//                byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
-//                byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
-//
-//                System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
-//                System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
-//
-//                value = valueWithSeparator;
-//            } else {
-//                byte[] valueBytes = (byte[]) record.value();
-//                byte[] separator = "\n".getBytes(StandardCharsets.UTF_8);
-//                byte[] valueWithSeparator = new byte[valueBytes.length + separator.length];
-//
-//                System.arraycopy(valueBytes, 0, valueWithSeparator, 0, valueBytes.length);
-//                System.arraycopy(separator, 0, valueWithSeparator, valueBytes.length, separator.length);
-//                value = valueWithSeparator;
-//                sendCorruptedRecords(value);
-//            }
-//
-//            if (value == null) {
-//                this.currentOffset = record.kafkaOffset();
-//            } else {
-//                final long maxAttempts = kustoSinkConfig.getMaxRetry() + 1;
-//                int attempts = 1;
-//                boolean indexed = false;
-//                while (!indexed) {
-//                    try {
-//                        this.currentOffset = record.kafkaOffset();
-//                        fileWriter.write(value);
-//                        indexed = true;
-//                    } catch (IOException e) {
-//                        if (attempts < maxAttempts) {
-//                            long sleepTimeMs = RetryUtil.computeRandomRetryWaitTimeInMillis(attempts - 1,
-//                                kustoSinkConfig.getRetryBaxkOff());
-//                            log.warn("File write failed with attempt {}/{}, "
-//                                    + "will attempt retry after {} ms. Failure reason: {}",
-//                                attempts, maxAttempts, sleepTimeMs, e.getMessage());
-//                            time.sleep(sleepTimeMs);
-//                        } else {
-//                            sendCorruptedRecords(value);
-//                            kustoSinkConfig.handleErrors("File write failed", e);
-//                        }
-//                        attempts++;
-//                    }
-//                }
-//            }
-//        }
+        }
     }
 
     public void open() {
@@ -196,7 +135,7 @@ public class TopicPartitionWriter {
                 fileThreshold,
                 this::handleRollFile,
                 this::getFilePath,
-                !shouldCompressData ? 0 : flushInterval,
+                flushInterval,
                 shouldCompressData,
             kustoSinkConfig);
         producer = createProducer();

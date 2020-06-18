@@ -15,6 +15,7 @@ import org.apache.kafka.connect.data.Schema;
 import com.microsoft.azure.kusto.kafka.connect.sink.KustoSinkConfig;
 import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -23,23 +24,20 @@ public class AvroRecordWriterProvider implements RecordWriterProvider<KustoSinkC
   private final AvroData avroData = new AvroData(50);
 
   @Override
-  public String getExtension() {
-    return null;
-  }
-
-  @Override
   public RecordWriter getRecordWriter(KustoSinkConfig conf, String filename, OutputStream out) {
     return new RecordWriter() {
       final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
       Schema schema;
+      long size =0;
 
       @Override
-      public void write(SinkRecord record) {
+      public void write(SinkRecord record) throws IOException {
         if (schema == null) {
           schema = record.valueSchema();
           try {
             log.info("Opening record writer for: {}", filename);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
+            writer.setFlushOnEveryBlock(true);
             writer.setCodec(CodecFactory.fromString(conf.getAvroCodec()));
             writer.create(avroSchema, out);
           } catch (IOException e) {
@@ -49,7 +47,7 @@ public class AvroRecordWriterProvider implements RecordWriterProvider<KustoSinkC
 
         log.trace("Sink record: {}", record);
         Object value = avroData.fromConnectData(schema, record.value());
-        try {
+        size += value.toString().getBytes().length;
           // AvroData wraps primitive types so their schema can be included. We need to unwrap
           // NonRecordContainers to just their value to properly handle these types
           if (value instanceof NonRecordContainer) {
@@ -57,9 +55,6 @@ public class AvroRecordWriterProvider implements RecordWriterProvider<KustoSinkC
           } else {
             writer.append(value);
           }
-        } catch (IOException e) {
-          throw new DataException(e);
-        }
       }
 
       @Override
@@ -78,6 +73,11 @@ public class AvroRecordWriterProvider implements RecordWriterProvider<KustoSinkC
         } catch (IOException e) {
           throw new DataException(e);
         }
+      }
+
+      @Override
+      public long getDataSize() {
+        return size;
       }
     };
   }
