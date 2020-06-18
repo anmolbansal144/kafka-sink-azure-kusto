@@ -4,6 +4,7 @@ import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriter;
 import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.AvroRecordWriterProvider;
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.ByteRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.JsonRecordWriterProvider;
 import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.StringRecordWriterProvider;
 
 import org.apache.kafka.common.utils.SystemTime;
@@ -101,7 +102,7 @@ public class FileWriter implements Closeable {
             recordWriterProvider = new AvroRecordWriterProvider();
         }
         else if (record.valueSchema().type() == Schema.Type.MAP) {
-
+            recordWriterProvider = new JsonRecordWriterProvider();
         }
         else if (record.valueSchema().type() == Schema.Type.STRING){
             recordWriterProvider = new StringRecordWriterProvider();
