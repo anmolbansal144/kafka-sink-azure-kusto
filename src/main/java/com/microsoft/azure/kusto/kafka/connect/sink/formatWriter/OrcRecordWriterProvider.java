@@ -25,7 +25,7 @@ import java.io.OutputStream;
 
 //import org.apache.orc.Writer;
 //import org.apache.orc.OrcFile;
-;import static io.confluent.kafka.serializers.AvroSchemaUtils.getSchema;
+import static io.confluent.kafka.serializers.AvroSchemaUtils.getSchema;
 
 public class OrcRecordWriterProvider implements RecordWriterProvider<KustoSinkConfig> {
     private static final Logger log = LoggerFactory.getLogger(OrcRecordWriterProvider.class);

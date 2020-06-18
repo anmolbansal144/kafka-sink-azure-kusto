@@ -69,7 +69,7 @@
     </developers>
     <properties>
         <kafka.scala.version>2.12</kafka.scala.version>
-        <kafka.version>1.0.0</kafka.version>
+        <kafka.version>5.3.0-ccs</kafka.version>
         <kafka.version.test>5.3.0-ccs</kafka.version.test>
         <json.version>20090211</json.version>
         <commonio.version>2.6</commonio.version>
@@ -146,16 +146,40 @@
             <version>1.9.5</version>
             <scope>test</scope>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>org.apache.kafka</groupId>-->
-<!--            <artifactId>connect-runtime</artifactId>-->
-<!--            <version>${kafka.version}</version>-->
-<!--            <scope>test</scope>-->
-<!--        </dependency>-->
         <dependency>
+           <groupId>org.apache.kafka</groupId>
+           <artifactId>connect-runtime</artifactId>
+           <version>${kafka.version}</version>
+       </dependency>
+       <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-runtime</artifactId>
             <version>${kafka.version}</version>
+            <classifier>test</classifier>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>${kafka.version}</version>
+            <classifier>test</classifier>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka_${kafka.scala.version}</artifactId>
+            <version>${kafka.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka_${kafka.scala.version}</artifactId>
+            <version>${kafka.version}</version>
+            <classifier>test</classifier>
+            <type>test-jar</type>
+            <scope>test</scope>
         </dependency>
 <!--        <dependency>-->
 <!--            <groupId>org.apache.kafka</groupId>-->
@@ -241,8 +265,9 @@
         <dependency>
             <groupId>org.apache.orc</groupId>
             <artifactId>orc-core</artifactId>
-            <version>1.1.1</version>
+            <version>1.6.3</version>
         </dependency>
+
 
 
 <!--]        <dependency>-->

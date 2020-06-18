@@ -2,6 +2,8 @@ package com.microsoft.azure.kusto.kafka.connect.sink.formatWriter;
 
 import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriter;
 import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
+
+import org.apache.kafka.connect.converters.ByteArrayConverter;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -12,7 +14,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-import org.apache.kafka.connect.converters.ByteArrayConverter;
 
 public class ByteArrayRecordWriterProvider implements RecordWriterProvider<KustoSinkConfig> {
 

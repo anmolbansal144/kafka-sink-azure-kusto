@@ -1,11 +1,12 @@
 package com.microsoft.azure.kusto.kafka.connect.sink.integeration;
 
-import com.microsoft.azure.kusto.data.Client;
-import com.microsoft.azure.kusto.data.ClientFactory;
-import com.microsoft.azure.kusto.data.ConnectionStringBuilder;
-import com.microsoft.azure.kusto.data.Results;
-import com.microsoft.azure.kusto.data.exceptions.DataClientException;
-import com.microsoft.azure.kusto.data.exceptions.DataServiceException;
+import static org.junit.Assert.assertEquals;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.junit.After;
 import org.junit.Before;
@@ -14,13 +15,13 @@ import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.*;
-
+import com.microsoft.azure.kusto.data.Client;
+import com.microsoft.azure.kusto.data.ClientFactory;
+import com.microsoft.azure.kusto.data.ConnectionStringBuilder;
+import com.microsoft.azure.kusto.data.Results;
+import com.microsoft.azure.kusto.data.exceptions.DataClientException;
+import com.microsoft.azure.kusto.data.exceptions.DataServiceException;
 import com.microsoft.azure.kusto.kafka.connect.sink.KustoSinkConfig;
-
-import static com.microsoft.azure.kusto.kafka.connect.sink.integeration.BaseConnectorIT.CONSUME_MAX_DURATION_MS;
-import static org.junit.Assert.assertEquals;
 
 public class AzureKustoConnectorIT extends BaseConnectorIT {
   private static final Logger log = LoggerFactory.getLogger(AzureKustoConnectorIT.class);
