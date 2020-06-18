@@ -98,11 +98,11 @@ public class FileWriter implements Closeable {
     public synchronized void writeData(SinkRecord record) throws IOException {
         if (record == null) return;
         byte[] value = null;
-        if (record.valueSchema().type() == Schema.Type.STRUCT) {
-            recordWriterProvider = new AvroRecordWriterProvider();
-        }
-        else if (record.valueSchema().type() == Schema.Type.MAP) {
+        if (record.value() instanceof Map) {
             recordWriterProvider = new JsonRecordWriterProvider();
+        }
+        else if (record.valueSchema().type() == Schema.Type.STRUCT) {
+            recordWriterProvider = new AvroRecordWriterProvider();
         }
         else if (record.valueSchema().type() == Schema.Type.STRING){
             recordWriterProvider = new StringRecordWriterProvider();

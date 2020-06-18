@@ -29,7 +29,7 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
   public JsonRecordWriterProvider() {
     Map<String, Object> converterConfig = new HashMap<>();
     converterConfig.put("schemas.enable", "false");
-    converterConfig.put("schemas.cache.size", 50);
+    converterConfig.put("schemas.cache.size", "50");
     this.converter.configure(converterConfig, false);
   }
 
@@ -49,20 +49,9 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
           log.trace("Sink record: {}", record);
           try {
             Object value = record.value();
-            if (value instanceof Map) {
-              byte[] rawJson = converter.fromConnectData(
-                  record.topic(),
-                  record.valueSchema(),
-                  value
-              );
-              out.write(rawJson);
-              out.write(LINE_SEPARATOR_BYTES);
-              size+= (rawJson.length + LINE_SEPARATOR_BYTES.length);
-            } else {
-              writer.writeObject(value);
-              writer.writeRaw(LINE_SEPARATOR);
-              size+= (value.toString().getBytes().length + LINE_SEPARATOR.getBytes().length);
-            }
+            writer.writeObject(value);
+            writer.writeRaw(LINE_SEPARATOR);
+            size+= (value.toString().getBytes().length + LINE_SEPARATOR.getBytes().length);
           } catch (IOException e) {
             throw new ConnectException(e);
           }
@@ -72,7 +61,6 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
         public void commit() {
           try {
             writer.flush();
-            out.flush();
           } catch (IOException e) {
             throw new ConnectException(e);
           }
@@ -80,7 +68,7 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<KustoSinkC
 
         @Override
         public long getDataSize() {
-          return 0;
+          return size;
         }
 
         @Override
