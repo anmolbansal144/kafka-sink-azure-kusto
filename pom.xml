@@ -75,6 +75,7 @@
         <commonio.version>2.6</commonio.version>
         <kusto-sdk.version>1.4.2</kusto-sdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <hive.version>2.3.6</hive.version>
     </properties>
     <dependencies>
         <dependency>
@@ -211,7 +212,30 @@
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client</artifactId>
+            <version>3.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-avro-converter</artifactId>
+            <version>5.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.parquet</groupId>
+            <artifactId>parquet-avro</artifactId>
+            <version>1.8.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>connect-runtime</artifactId>
+            <version>${kafka.version.test}</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
+
+
     <repositories>
         <repository>
             <id>jitpack.io</id>
