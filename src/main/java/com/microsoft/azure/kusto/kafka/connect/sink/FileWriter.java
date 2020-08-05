@@ -74,7 +74,10 @@ public class FileWriter implements Closeable {
                       long flushInterval,
                       ReentrantReadWriteLock reentrantLock,
                       IngestionProperties ingestionProps,
-                      BehaviorOnError behaviorOnError) {
+                      BehaviorOnError behaviorOnError,
+                      RecordWriterProvider recordWriterProvider,
+                      boolean shouldWriteAvroAsBytes
+                      ) {
         this.getFilePath = getFilePath;
         this.basePath = basePath;
         this.fileThreshold = fileThreshold;
@@ -88,6 +91,8 @@ public class FileWriter implements Closeable {
         // If we failed on flush we want to throw the error from the put() flow.
         flushError = null;
         this.ingestionProps = ingestionProps;
+        this.recordWriterProvider = recordWriterProvider;
+        this.shouldWriteAvroAsBytes = shouldWriteAvroAsBytes;
 
     }
 
@@ -236,9 +241,6 @@ public class FileWriter implements Closeable {
             throw new ConnectException(flushError);
         }
         if (record == null) return;
-        if (recordWriterProvider == null) {
-            initializeRecordWriter(record);
-        }
         if (currentFile == null) {
             openFile(record.kafkaOffset());
             resetFlushTimer(true);
@@ -254,33 +256,6 @@ public class FileWriter implements Closeable {
         }
     }
 
-    public void initializeRecordWriter(SinkRecord record) {
-        if (record.value() instanceof Map) {
-            recordWriterProvider = new JsonRecordWriterProvider();
-        }
-        else if ((record.valueSchema() != null) && (record.valueSchema().type() == Schema.Type.STRUCT)) {
-            if (ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.json.toString())) {
-                recordWriterProvider = new JsonRecordWriterProvider();
-            } else if(ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.avro.toString())) {
-                recordWriterProvider = new AvroRecordWriterProvider();
-            } else {
-                throw new ConnectException(String.format("Invalid Kusto table mapping, Kafka records of type "
-                   + "Avro and JSON can only be ingested to Kusto table having Avro or JSON mapping. "
-                   + "Currently, it is of type %s.", ingestionProps.getDataFormat()));
-            }
-        }
-        else if ((record.valueSchema() == null) || (record.valueSchema().type() == Schema.Type.STRING)){
-            recordWriterProvider = new StringRecordWriterProvider();
-        }
-        else if ((record.valueSchema() != null) && (record.valueSchema().type() == Schema.Type.BYTES)){
-            recordWriterProvider = new ByteRecordWriterProvider();
-            if(ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.avro.toString())) {
-                shouldWriteAvroAsBytes = true;
-            }
-        } else {
-            throw new ConnectException(String.format("Invalid Kafka record format, connector does not support %s format. This connector supports Avro, Json with schema, Json without schema, Byte, String format. ",record.valueSchema().type()));
-        }
-    }
 
     private class CountingOutputStream extends FilterOutputStream {
         private long numBytes = 0;

@@ -12,6 +12,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -68,9 +69,15 @@ public class JsonRecordWriterProvider implements RecordWriterProvider {
         public void commit() {
           try {
             writer.flush();
+            out.flush();
           } catch (IOException e) {
             throw new DataException(e);
           }
+        }
+
+        @Override
+        public byte[] getByteData() {
+          return ((ByteArrayOutputStream) out).toByteArray();
         }
 
         @Override

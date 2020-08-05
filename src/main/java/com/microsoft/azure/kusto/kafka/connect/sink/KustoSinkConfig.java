@@ -360,7 +360,11 @@ public class KustoSinkConfig extends AbstractConfig {
         return this.getLong(KUSTO_SINK_MAX_RETRY_TIME_MS_CONF) 
             / this.getLong(KUSTO_SINK_RETRY_BACKOFF_TIME_MS_CONF);
     }
-    
+
+    public boolean isStreamingClientUsed() {
+        return true;
+    }
+
     public long getRetryBackOffTimeMs() {
         return this.getLong(KUSTO_SINK_RETRY_BACKOFF_TIME_MS_CONF);
     }

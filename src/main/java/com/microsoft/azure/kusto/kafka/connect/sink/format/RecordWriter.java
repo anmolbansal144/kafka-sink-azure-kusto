@@ -18,6 +18,8 @@ public interface RecordWriter extends Closeable {
    */
   void close();
 
+  public byte[] getByteData();
+
   /**
    * Flush writer's data and commit the records in Kafka. Optionally, this operation might also
    * close the writer.

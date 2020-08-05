@@ -77,14 +77,16 @@ public class KustoSinkTask extends SinkTask {
                 }
 
                 ConnectionStringBuilder kcsb = ConnectionStringBuilder.createWithAadApplicationCredentials(
-                        config.getKustoUrl(),
+                    config.isStreamingClientUsed() ? config.getKustoUrl().replace("https://ingest-", "https://")
+                    : config.getKustoUrl(),
                         config.getAuthAppid(),
                         config.getAuthAppkey(),
                         config.getAuthAuthority()
                 );
                 kcsb.setClientVersionForTracing(Version.CLIENT_NAME + ":" + Version.getVersion());
 
-                return IngestClientFactory.createClient(kcsb);
+                return config.isStreamingClientUsed() ? IngestClientFactory.createStreamingIngestClient(kcsb)
+                : IngestClientFactory.createClient(kcsb);
             }
 
             throw new ConfigException("Failed to initialize KustoIngestClient, please " +
@@ -278,6 +280,7 @@ public class KustoSinkTask extends SinkTask {
                     KustoOperationResult rs = engineClient.execute(database, String.format(FETCH_PRINCIPAL_ROLES_QUERY, authenticateWith, database, table));
                     hasAccess = (boolean) rs.getPrimaryResults().getData().get(0).get(INGESTION_ALLOWED_INDEX);
                     if (hasAccess) {
+                        engineClient.execute(database, String.format(".alter table %s policy streamingingestion enable", table));
                         log.info("User has appropriate permissions to sink data into the Kusto table={}", table);
                     } else {
                         accessErrorList.add(String.format("User does not have appropriate permissions " +
@@ -310,7 +313,9 @@ public class KustoSinkTask extends SinkTask {
                         "for the topic: %s. please check your configuration.", tp.topic()));
             } else {
                 TopicPartitionWriter writer = new TopicPartitionWriter(tp, kustoIngestClient, ingestionProps, config, isDlqEnabled, dlqTopicName, dlqProducer);
-                writer.open();
+                if(!config.isStreamingClientUsed()) {
+                    writer.open();
+                }
                 writers.put(tp, writer);
             }
         }

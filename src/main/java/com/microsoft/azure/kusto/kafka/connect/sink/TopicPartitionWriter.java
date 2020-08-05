@@ -5,12 +5,20 @@ import com.microsoft.azure.kusto.ingest.IngestionProperties;
 import com.microsoft.azure.kusto.ingest.exceptions.IngestionClientException;
 import com.microsoft.azure.kusto.ingest.exceptions.IngestionServiceException;
 import com.microsoft.azure.kusto.ingest.source.FileSourceInfo;
+import com.microsoft.azure.kusto.ingest.source.StreamSourceInfo;
 import com.microsoft.azure.kusto.kafka.connect.sink.KustoSinkConfig.BehaviorOnError;
 
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriter;
+import com.microsoft.azure.kusto.kafka.connect.sink.format.RecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.AvroRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.ByteRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.JsonRecordWriterProvider;
+import com.microsoft.azure.kusto.kafka.connect.sink.formatWriter.StringRecordWriterProvider;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -18,9 +26,12 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -46,6 +57,10 @@ class TopicPartitionWriter {
     private final String dlqTopicName;
     private final Producer<byte[], byte[]> dlqProducer;
     private final BehaviorOnError behaviorOnError;
+    private RecordWriterProvider recordWriterProvider;
+    private RecordWriter recordWriter;
+    private boolean shouldWriteAvroAsBytes = false;
+    private boolean isStreaming = false;
 
     TopicPartitionWriter(TopicPartition tp, IngestClient client, TopicIngestionProperties ingestionProps,
         KustoSinkConfig config, boolean isDlqEnabled, String dlqTopicName, Producer<byte[], byte[]> dlqProducer)
@@ -64,6 +79,8 @@ class TopicPartitionWriter {
         this.isDlqEnabled = isDlqEnabled;
         this.dlqTopicName = dlqTopicName;
         this.dlqProducer = dlqProducer;
+        this.isStreaming = config.isStreamingClientUsed();
+
 
     }
 
@@ -157,13 +174,64 @@ class TopicPartitionWriter {
         try {
           reentrantReadWriteLock.readLock().lock();
           this.currentOffset = record.kafkaOffset();
-          fileWriter.writeData(record);
+          if(recordWriterProvider == null ) {
+              initializeRecordWriter(record);
+          }
+            if (isStreaming) {
+                writeStreamingRecord(record);
+            } else {
+                fileWriter.writeData(record);
+            }
         } catch (IOException | DataException ex) {
           handleErrors(record, ex);
+        } catch (IngestionClientException e) {
+            e.printStackTrace();
+        } catch (IngestionServiceException e) {
+            e.printStackTrace();
         } finally {
           reentrantReadWriteLock.readLock().unlock();
         }
       }
+    }
+
+    public void writeStreamingRecord(SinkRecord record) throws IngestionClientException, IngestionServiceException, IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        recordWriter = recordWriterProvider.getRecordWriter(null, out);
+        recordWriter.write(record);
+        recordWriter.commit();
+        out.flush();
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(recordWriter.getByteData());
+        StreamSourceInfo streamSourceInfo =  new StreamSourceInfo(inputStream);
+        client.ingestFromStream(streamSourceInfo, ingestionProps);
+        recordWriter.close();
+    }
+
+    public void initializeRecordWriter(SinkRecord record) {
+        if (record.value() instanceof Map) {
+            recordWriterProvider = new JsonRecordWriterProvider();
+        }
+        else if ((record.valueSchema() != null) && (record.valueSchema().type() == Schema.Type.STRUCT)) {
+            if (ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.json.toString())) {
+                recordWriterProvider = new JsonRecordWriterProvider();
+            } else if(ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.avro.toString())) {
+                recordWriterProvider = new AvroRecordWriterProvider();
+            } else {
+                throw new ConnectException(String.format("Invalid Kusto table mapping, Kafka records of type "
+                    + "Avro and JSON can only be ingested to Kusto table having Avro or JSON mapping. "
+                    + "Currently, it is of type %s.", ingestionProps.getDataFormat()));
+            }
+        }
+        else if ((record.valueSchema() == null) || (record.valueSchema().type() == Schema.Type.STRING)){
+            recordWriterProvider = new StringRecordWriterProvider();
+        }
+        else if ((record.valueSchema() != null) && (record.valueSchema().type() == Schema.Type.BYTES)){
+            recordWriterProvider = new ByteRecordWriterProvider();
+            if(ingestionProps.getDataFormat().equals(IngestionProperties.DATA_FORMAT.avro.toString())) {
+                shouldWriteAvroAsBytes = true;
+            }
+        } else {
+            throw new ConnectException(String.format("Invalid Kafka record format, connector does not support %s format. This connector supports Avro, Json with schema, Json without schema, Byte, String format. ",record.valueSchema().type()));
+        }
     }
 
     private void handleErrors(SinkRecord record, Exception ex) {
@@ -188,12 +256,14 @@ class TopicPartitionWriter {
                 flushInterval,
                 reentrantReadWriteLock,
                 ingestionProps,
-                behaviorOnError);
+                behaviorOnError,
+                recordWriterProvider,
+                shouldWriteAvroAsBytes);
     }
 
     void close() {
         try {
-            fileWriter.rollback();
+                fileWriter.rollback();
             // fileWriter.close(); TODO ?
         } catch (IOException e) {
             log.error("Failed to rollback with exception={}", e);
